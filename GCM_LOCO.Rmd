@@ -1,0 +1,641 @@
+---
+title: "GCM+LOCO"
+author: "Chenghui Zheng"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(MASS)
+library(GeneralisedCovarianceMeasure)
+```
+
+####################GCM Simulation###################################
+$$
+a) Z \sim N(0,1), X = 2*sin(Z) + 0.1*N(0,1), Y = 2*sin(Z) + 0.1*N(0,1)
+$$
+
+
+
+```{r}
+# Simulation for X is conditional independent of Y given Z
+# Z is non-linear
+simulate <- function(sample_sizes, num_simulations = 100, alpha = 0.05) {
+  results <- data.frame(Sample_Size = numeric(0),
+      Rejection_Rate = numeric(0))
+  
+  for (n in sample_sizes) {
+    rejections <- 0
+    
+    for (i in 1:num_simulations) {
+      Z <- rnorm(n)
+      X <-2*sin(Z) +  0.1*rnorm(n)
+      Y <-  2*sin(Z) +  0.1*rnorm(n)
+      gcm_results <- gcm.test(X, Y, Z, regr.method = "kernel.ridge")
+      p.value <- gcm_results$p.value
+      
+      if (p.value < alpha) {
+        rejections <- rejections + 1
+      }
+    }
+    
+    type1_error <- rejections / num_simulations 
+
+    
+    results <- rbind(results, data.frame(
+      Sample_Size = n,
+      Rejection_Rate = type1_error
+    ))
+  }
+  
+  return(results)
+}
+
+
+sample_sizes <- c(50, 100, 200, 300, 500)
+# Get duration of code execution
+start <- proc.time()
+set.seed(101)  
+results1 <- simulate(sample_sizes)
+print( proc.time() - start ) 
+#   user  system elapsed 
+#  5524.68  284.83 5885.64
+#print(results)
+
+
+write.csv(results1, "simulation_gcm1.csv", row.names = FALSE)
+
+
+#pdf(file = "simulation_plot1.pdf")
+
+ggplot(results_gcm1, aes(x = Sample_Size, y = Rejection_Rate)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Rejection Rate vs. Sample Size",
+       x = "Sample Size",
+       y = "Rejection Rate") +
+  theme_minimal()
+
+#dev.off()
+```
+
+$$
+b) Z \sim N(0,1), X = 2*Z + 0.1*N(0,1), Y = 2*Z + 0.1*N(0,1)
+$$
+
+```{r}
+# Simulation for X is conditional independent of Y given Z
+# Z is linear
+simulate <- function(sample_sizes, num_simulations = 100, alpha = 0.05) {
+  results <- data.frame(Sample_Size = numeric(0),
+      Rejection_Rate = numeric(0))
+  
+  for (n in sample_sizes) {
+    rejections <- 0
+    
+    for (i in 1:num_simulations) {
+      Z <- rnorm(n)
+      X <-2*Z +  0.1*rnorm(n)
+      Y <-  2*Z +  0.1*rnorm(n)
+      gcm_results <- gcm.test(X, Y, Z, regr.method = "kernel.ridge")
+      p.value <- gcm_results$p.value
+      
+      if (p.value < alpha) {
+        rejections <- rejections + 1
+      }
+    }
+    
+    type1_error <- rejections / num_simulations 
+
+    
+    results <- rbind(results, data.frame(
+      Sample_Size = n,
+      Rejection_Rate = type1_error
+    ))
+  }
+  
+  return(results)
+}
+
+
+sample_sizes <- c(50, 100, 200, 300, 500)
+# Get duration of code execution
+start <- proc.time()
+set.seed(123)  
+results_gcm2 <- simulate(sample_sizes)
+print( proc.time() - start )
+#print(results)
+#    user  system elapsed 
+#  7771.22  342.86 8270.81
+
+
+write.csv(results_gcm2, "simulation_gcm2.csv", row.names = FALSE)
+
+#pdf(file = "simulation_plot1.pdf")
+
+ggplot(results_gcm2, aes(x = Sample_Size, y = Rejection_Rate)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Rejection Rate vs. Sample Size",
+       x = "Sample Size",
+       y = "Rejection Rate") +
+  theme_minimal()
+
+#dev.off()
+```
+
+
+######################################GCM Filter Simulation########################
+```{r}
+library(MASS)
+library(dplyr)
+library(mvtnorm)
+library(matrixcalc)
+library(mlr)
+library(iml)
+library(ggplot2)
+library(randomForest)
+library(kknn)
+source("stored_functions_for_GCM_LOCO.R")
+```
+
+
+
+```{r}
+# case a) simulation with sample size 1000, 100 simulations
+# each simulation takes roughly 22 sec
+results <- data.frame(
+  Averaged_Test_Statistic = numeric(0),
+  Rejection_Rate = numeric(0)
+)
+
+num_simulation <- 100
+
+# Initialize aggregate statistics and rejection count
+aggregate_test_stat <- numeric(4)
+rejections <- numeric(4) # Assuming 4 feature inputs
+set.seed(101)
+# Run simulations
+for (i in 1:num_simulation) {
+  # Specify entries for covariance matrix, pho=0
+  sigma_indep <- diag(1, nrow = 4)
+  data_indep <- as.data.frame(mvrnorm(n = 1000, 
+                                      mu = rep(0, times = 4), 
+                                      Sigma = sigma_indep))
+  colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+  
+  # Define response y
+  y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + rnorm(n = 1000, mean = 0, sd = 0.01)
+  data_indep["y"] <- y1
+  filter_results <- GCM_filter(data_indep, "regr.randomForest","y")
+
+  # Aggregate test statistics and rejections
+  aggregate_test_stat <- aggregate_test_stat + filter_results$resultGCM$test.statistics
+  rejections <- rejections + filter_results$resultGCM$rejection
+}
+
+
+type1_error <- rejections / num_simulation
+results <- rbind(results, data.frame(
+  Averaged_Test_Statistic = aggregate_test_stat / num_simulation, 
+  Rejection_Rate = type1_error
+))
+
+results$p_value <-as.numeric(2 * (1 - pnorm(abs(results$Averaged_Test_Statistic)))) 
+```
+
+```{r}
+
+write.csv(results, "simulation_gcm_loco1.csv", row.names = FALSE)
+```
+
+
+```{r}
+# case b) simulation with sample size 1000, 100 simulations
+# each simulation takes roughly 22 sec
+    results <- data.frame(Sample_Size = numeric(0),
+    Rejection_Rate = numeric(0),averaged_test_statistic = numeric(0))
+    num_simulation = 100
+  
+    aggregate_test_stat <- numeric(4)
+    rejections <- numeric(4) # There are 4 feature input
+    set.seed(101)
+    for (i in 1:num_simulation) {
+     # specify entries for covariance matrix, pho=0
+        sigma_indep <- diag(1, nrow = 4)
+
+        data_indep <- as.data.frame(rmvnorm(n = 1000, 
+                                  mean = rep(0, times = 4), 
+                                  sigma = sigma_indep))
+        colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+        # Define response y2: 
+        y2  <- data_indep$X1 + data_indep$X2 + (data_indep$X3)*0.001 + rnorm(n = 1000, mean = 0, sd = 0.01) 
+ 
+        data_indep["y"]  <- y2
+
+        filter_results <- GCM_filter(data_indep, "regr.randomForest", "y")
+        aggregate_test_stat <- aggregate_test_stat + filter_results$resultGCM$test.statistics
+        rejections <- rejections + filter_results$resultGCM$rejection
+    }
+    
+    type1_error <- rejections / num_simulation 
+
+    
+    results2 <- rbind(results, data.frame(
+      #Sample_Size = sample_sizes,
+      Averaged_Test_Statistic =aggregate_test_stat/num_simulation, 
+      Rejection_Rate = type1_error
+    ))
+  
+  
+results2$p_value <-as.numeric(2 * (1 -pnorm(abs(results2$Averaged_Test_Statistic)))) 
+
+```
+
+
+```{r}
+
+write.csv(results2, "simulation_gcm_loco2.csv", row.names = FALSE)
+```
+
+
+```{r}
+# case c), unconditional independent & different correlations
+results3 <- data.frame(
+  Correlation = numeric(0),
+  Sample_Size = numeric(0),
+  Averaged_Test_Statistic = numeric(0),
+  Rejection_Rate = numeric(0)
+)
+
+# Simulation parameters
+num_simulation <- 50
+sample_size <- 1000
+correlations <- c(0.01, 0.5, 0.75,0.99)
+set.seed(101)
+for (rho in correlations) {
+  aggregate_test_stat <- numeric(4)
+  rejections <- numeric(4)
+  
+  for (i in 1:num_simulation) {
+    # Specify covariance matrix
+    sigma <- diag(1, nrow = 4)
+    sigma[1, 2] <- rho
+    sigma[2, 1] <- rho
+    
+    # Generate correlated data
+    data <- as.data.frame(mvrnorm(n = sample_size, 
+                                  mu = rep(0, times = 4), 
+                                  Sigma = sigma))
+    colnames(data) <- c("X1", "X2", "X3", "X4")
+    
+    # Define response y
+    y <- data$X1 + data$X2 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
+    data["y"] <- y
+    
+    # Apply GCM_filter
+    filter_results <- GCM_filter(data, "regr.randomForest", "y")
+    
+    # Aggregate test statistics and rejections
+    aggregate_test_stat <- aggregate_test_stat + filter_results$resultGCM$test.statistics
+    rejections <- rejections + filter_results$resultGCM$rejection
+  }
+  
+  # Calculate type I error rate
+  type1_error <- rejections / num_simulation
+  
+  # Append results to the results data frame
+  results3 <- rbind(results3, data.frame(
+    Correlation = rho,
+    Sample_Size = sample_size,
+    Averaged_Test_Statistic = aggregate_test_stat / num_simulation,
+    Rejection_Rate = type1_error
+  ))
+}
+
+results3$p_value <-as.numeric(2 * (1 - pnorm(abs(results3$Averaged_Test_Statistic)))) 
+```
+
+```{r}
+write.csv(results3, "simulation_gcm_loco3.csv", row.names = FALSE)
+```
+
+
+```{r}
+# case d), unconditional independent & different correlations
+results4 <- data.frame(
+  Correlation = numeric(0),
+  Sample_Size = numeric(0),
+  Averaged_Test_Statistic = numeric(0),
+  Rejection_Rate = numeric(0)
+)
+
+num_simulation <- 50
+sample_size <- 1000
+correlations <- c(0.01, 0.5, 0.75,0.99)
+set.seed(101)
+for (rho in correlations) {
+  aggregate_test_stat <- numeric(4)
+  rejections <- numeric(4)
+  
+  for (i in 1:num_simulation) {
+    # Specify covariance matrix
+    sigma <- diag(1, nrow = 4)
+    sigma[1, 2] <- rho
+    sigma[2, 1] <- rho
+    
+    data <- as.data.frame(mvrnorm(n = sample_size, 
+                                  mu = rep(0, times = 4), 
+                                  Sigma = sigma))
+    colnames(data) <- c("X1", "X2", "X3", "X4")
+    
+    # Define response y
+    y <- data$X1 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
+    data["y"] <- y
+    
+    filter_results <- GCM_filter(data, "regr.randomForest", "y")
+    
+    aggregate_test_stat <- aggregate_test_stat + filter_results$resultGCM$test.statistics
+    rejections <- rejections + filter_results$resultGCM$rejection
+  }
+  
+  type1_error <- rejections / num_simulation
+  
+  # Append results to the results data frame
+  results4 <- rbind(results4, data.frame(
+    Correlation = rho,
+    Sample_Size = sample_size,
+    Averaged_Test_Statistic = aggregate_test_stat / num_simulation,
+    Rejection_Rate = type1_error
+  ))
+}
+
+results4$p_value <-as.numeric(2 * (1 - pnorm(abs(results4$Averaged_Test_Statistic)))) 
+```
+
+```{r}
+write.csv(results4, "simulation_gcm_loco4.csv", row.names = FALSE)
+```
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%LOCO Simulation%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+```{r}
+# case a)
+set.seed(101)
+sigma_indep <- diag(1, nrow = 4)
+data_indep <- as.data.frame(mvrnorm(n = 1000, 
+                                      mu = rep(0, times = 4), 
+                                      Sigma = sigma_indep))
+colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+  
+# Define response y
+y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + rnorm(n = 1000, mean = 0, sd = 0.01)
+data_indep["y"] <- y1
+
+start <- proc.time()
+LOCO_results <- LOCO(data_indep, "regr.randomForest","y")
+print( proc.time() - start )
+write.csv(LOCO_results, "simulation_loco1.csv", row.names = FALSE)
+#    user  system elapsed 
+#   52.19    2.83   55.94 
+```
+
+
+```{r}
+# case b)
+set.seed(101) 
+sigma_indep <- diag(1, nrow = 4)
+
+data_indep <- as.data.frame(rmvnorm(n = 1000, 
+                                  mean = rep(0, times = 4), 
+                                  sigma = sigma_indep))
+colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+# Define response y2: 
+y2  <- data_indep$X1 + data_indep$X2 + (data_indep$X3)*0.001 + rnorm(n = 1000, mean = 0, sd = 0.01) 
+ 
+data_indep["y"]  <- y2
+
+start <- proc.time()
+ 
+LOCO_results <- LOCO(data_indep, "regr.randomForest","y")
+print( proc.time() - start )
+write.csv(LOCO_results, "simulation_loco2.csv", row.names = FALSE)
+#     user  system elapsed 
+#   52.45    2.51   55.76 
+```
+
+
+
+```{r}
+# case c)
+start <- proc.time()
+results3 <- data.frame()
+
+# Simulation parameters
+sample_size <- 1000
+correlations <- c(0, 0.5, 0.75, 0.99)
+set.seed(101)
+
+for (rho in correlations) {
+  # Specify covariance matrix
+  sigma <- diag(1, nrow = 4)
+  sigma[1, 2] <- rho
+  sigma[2, 1] <- rho
+  
+  data <- as.data.frame(mvrnorm(n = sample_size, 
+                                mu = rep(0, times = 4), 
+                                Sigma = sigma))
+  colnames(data) <- c("X1", "X2", "X3", "X4")
+  
+  # Define response y
+  y <- data$X1 + data$X2 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
+  data["y"] <- y
+  
+  filter_results <- LOCO(data, "regr.randomForest", "y")
+  
+  filter_results$Correlation <- rho
+  filter_results$Sample_Size <- sample_size
+  
+  results3 <- rbind(results3, filter_results)
+}
+print( proc.time() - start )
+write.csv(results3, "simulation_loco3.csv", row.names = FALSE)
+#  user  system elapsed 
+# 202.63   10.77  216.25  
+```
+
+
+```{r}
+# case d)
+start <- proc.time()
+results4 <- data.frame()
+
+# Simulation parameters
+sample_size <- 1000
+correlations <- c(0, 0.5, 0.75, 0.99)
+set.seed(101)
+
+for (rho in correlations) {
+  # Specify covariance matrix
+  sigma <- diag(1, nrow = 4)
+  sigma[1, 2] <- rho
+  sigma[2, 1] <- rho
+  
+  data <- as.data.frame(mvrnorm(n = sample_size, 
+                                mu = rep(0, times = 4), 
+                                Sigma = sigma))
+  colnames(data) <- c("X1", "X2", "X3", "X4")
+  
+  # Define response y
+  y <- data$X1  + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
+  data["y"] <- y
+  
+  filter_results <- LOCO(data, "regr.randomForest", "y")
+  
+  filter_results$Correlation <- rho
+  filter_results$Sample_Size <- sample_size
+  
+  results4 <- rbind(results4, filter_results)
+}
+print( proc.time() - start )
+write.csv(results4, "simulation_loco4.csv", row.names = FALSE)
+#  user  system elapsed 
+# 197.94   10.44  212.86 
+```
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%GCM Filter First + LOCO%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+```{r}
+library(tidyverse)
+library(dplyr)
+# case a)
+set.seed(101)
+sigma_indep <- diag(1, nrow = 4)
+data_indep <- as.data.frame(mvrnorm(n = 1000, 
+                                      mu = rep(0, times = 4), 
+                                      Sigma = sigma_indep))
+colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+  
+# Define response y
+y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + rnorm(n = 1000, mean = 0, sd = 0.01)
+data_indep["y"] <- y1
+
+start <- proc.time()
+filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
+alg_result <-LOCO(filter_results, "regr.randomForest","y")
+print( proc.time() - start )
+write.csv(alg_result, "simulation_alg1.csv", row.names = FALSE)
+# user  system elapsed 
+#  51.97    2.62   55.41
+```
+
+```{r}
+# case b)
+set.seed(101)
+sigma_indep <- diag(1, nrow = 4)
+
+data_indep <- as.data.frame(rmvnorm(n = 1000, 
+                                  mean = rep(0, times = 4), 
+                                  sigma = sigma_indep))
+colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+# Define response y2: 
+y2  <- data_indep$X1 + data_indep$X2 + (data_indep$X3)*0.001 + rnorm(n = 1000, mean = 0, sd = 0.01) 
+ 
+data_indep["y"]  <- y2
+
+start <- proc.time()
+filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
+alg_result <-LOCO(filter_results, "regr.randomForest","y")
+print( proc.time() - start )
+write.csv(alg_result, "simulation_alg2.csv", row.names = FALSE)
+#   user  system elapsed 
+#  43.36    2.61   46.53 
+```
+
+
+```{r}
+# case c)
+start <- proc.time()
+results3 <- data.frame()
+
+# Simulation parameters
+sample_size <- 1000
+correlations <- c(0, 0.5, 0.75, 0.99)
+set.seed(101)
+
+for (rho in correlations) {
+  # Specify covariance matrix
+  sigma <- diag(1, nrow = 4)
+  sigma[1, 2] <- rho
+  sigma[2, 1] <- rho
+  
+  data <- as.data.frame(mvrnorm(n = sample_size, 
+                                mu = rep(0, times = 4), 
+                                Sigma = sigma))
+  colnames(data) <- c("X1", "X2", "X3", "X4")
+  
+  # Define response y
+  y <- data$X1 + data$X2 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
+  data["y"] <- y
+  
+  filter_results <- GCM_filter(data, "regr.randomForest","y")[[2]]
+  alg_result <-LOCO(filter_results, "regr.randomForest","y")
+  
+  alg_result$Correlation <- rho
+  alg_result$Sample_Size <- sample_size
+  
+  results3 <- rbind(results3, alg_result)
+}
+print( proc.time() - start )
+write.csv(results3, "simulation_alg3.csv", row.names = FALSE)
+#  user  system elapsed 
+# 194.64    9.71  207.48 
+```
+
+
+```{r}
+# case d)
+start <- proc.time()
+results4 <- data.frame()
+
+# Simulation parameters
+sample_size <- 1000
+correlations <- c(0, 0.5, 0.75, 0.99)
+set.seed(101)
+
+for (rho in correlations) {
+  # Specify covariance matrix
+  sigma <- diag(1, nrow = 4)
+  sigma[1, 2] <- rho
+  sigma[2, 1] <- rho
+  
+  data <- as.data.frame(mvrnorm(n = sample_size, 
+                                mu = rep(0, times = 4), 
+                                Sigma = sigma))
+  colnames(data) <- c("X1", "X2", "X3", "X4")
+  
+  # Define response y
+  y <- data$X1 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
+  data["y"] <- y
+  
+  filter_results <- GCM_filter(data, "regr.randomForest","y")[[2]]
+  alg_result <-LOCO(filter_results, "regr.randomForest","y")
+  
+  alg_result$Correlation <- rho
+  alg_result$Sample_Size <- sample_size
+  
+  results4 <- rbind(results4, alg_result)
+}
+print( proc.time() - start )
+write.csv(results4, "simulation_alg4.csv", row.names = FALSE)
+#   user  system elapsed 
+# 170.50    8.11  180.88 
+```

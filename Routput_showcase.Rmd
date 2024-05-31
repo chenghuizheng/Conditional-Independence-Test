@@ -1,0 +1,253 @@
+---
+title: "R-Output Presenattion"
+author: "Chenghui Zheng"
+date: '`r Sys.Date()`'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE,warning=FALSE,message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(MASS)
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+loco1 <- read.csv("r_output/simulation_loco1.csv")
+loco2 <- read.csv("r_output/simulation_loco2.csv")
+loco3 <- read.csv("r_output/simulation_loco3.csv")
+loco4 <- read.csv("r_output/simulation_loco4.csv")
+```
+
+
+\begin{itemize}
+    \item[(a)] \( Y_1 \sim X_1 + X_2 + X_3 + \epsilon \), where \( X_i \) are mutually independent.
+    \item[(b)] \( Y_2 \sim X_1 + X_2 + 0.001X_3 + \epsilon \), where \( X_i \) are mutually independent.
+    \item[(c)] \( Y_3 \sim X_1 + X_2 + X_3 + \epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
+    \item[(d)] \( Y_4 \sim X_1 + X_3 + \epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
+\end{itemize}
+
+## LOCO only
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+pl1 <- ggplot(loco1, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+pl2 <- ggplot(loco2, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+plot_grid(pl1, pl2, labels = "AUTO")
+```
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+loco3$Correlation <- as.factor(loco3$Correlation)
+pl3 <- ggplot(loco3, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ loco4$Correlation <- as.factor(loco4$Correlation)
+pl4 <-ggplot(loco4, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case d): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+plot_grid(pl3, pl4, labels = "AUTO")
+```
+
+## GCM filter first + LOCO
+```{r,echo=FALSE}
+alg1 <- read.csv("r_output/simulation_alg1.csv")
+alg2 <- read.csv("r_output/simulation_alg2.csv")
+alg3 <- read.csv("r_output/simulation_alg3.csv")
+alg4 <- read.csv("r_output/simulation_alg4.csv")
+```
+
+```{r,echo=FALSE}
+pl1 <- ggplot(alg1, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
+  labs(title = 'Case a):',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+
+pl2 <- ggplot(alg2, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE}
+plot_grid(pl1, pl2, labels = "AUTO")
+```
+
+```{r,echo=FALSE}
+alg3$Correlation <- as.factor(alg3$Correlation)
+pl3 <- ggplot(alg3, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE}
+alg4$Correlation <- as.factor(alg4$Correlation)
+pl4 <-ggplot(alg4, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case d):',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE}
+plot_grid(pl3, pl4, labels = "AUTO")
+```
+
+
+## GCM only
+```{r,echo=FALSE}
+gcm1 <- read.csv("r_output/simulation_gcm_loco1.csv")
+gcm2 <- read.csv("r_output/simulation_gcm_loco2.csv")
+gcm3 <- read.csv("r_output/simulation_gcm_loco3.csv")
+gcm4 <- read.csv("r_output/simulation_gcm_loco4.csv")
+feature <- c('X1', 'X2','X3','X4')
+gcm1$Features <- feature
+gcm2$Features <- feature
+gcm3$Features <- rep(feature,times=4)
+gcm4$Features <- rep(feature,times=4)
+
+```
+
+```{r,echo=FALSE}
+pl1 <- ggplot(gcm1, aes(x = Features, y = Rejection_Rate)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue')+
+  labs(title = 'Case a):',
+       x = 'Features',
+       y = 'Rejection_Rate') +
+  theme_minimal()
+
+pl2 <- ggplot(gcm2, aes(x = Features, y = Rejection_Rate)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue')+
+  labs(title = 'Case b):',
+       x = 'Features',
+       y = 'Rejection_Rate') +
+  theme_minimal()
+
+```
+
+```{r,echo=FALSE}
+plot_grid(pl1, pl2, labels = "AUTO")
+```
+
+```{r,echo=FALSE}
+gcm3$Correlation <- as.factor(gcm3$Correlation)
+pl3 <- ggplot(gcm3, aes(x = Features, y = Rejection_Rate, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Rejection_Rate') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE}
+gcm4$Correlation <- as.factor(gcm4$Correlation)
+pl4 <- ggplot(gcm4, aes(x = Features, y = Rejection_Rate, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case d): ',
+       x = 'Features',
+       y = 'Rejection_Rate') +
+  theme_minimal()
+```
+
+```{r,echo=FALSE}
+plot_grid(pl3, pl4, labels = "AUTO")
+```
+
+####################GCM Simulation###################################
+```{r,echo=FALSE}
+gcm_s1 <- read.csv("r_output/simulation_gcm1.csv")
+gcm_s2 <- read.csv("r_output/simulation_gcm2.csv")
+```
+
+$$
+a) Z \sim N(0,1), X = 2*sin(Z) + 0.1*N(0,1), Y = 2*sin(Z) + 0.1*N(0,1)
+$$
+
+```{r,echo=FALSE}
+
+ggplot(gcm_s1, aes(x = Sample_Size, y = Rejection_Rate)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Rejection Rate vs. Sample Size",
+       x = "Sample Size",
+       y = "Rejection Rate") +
+  theme_minimal()
+```
+$$
+b) Z \sim N(0,1), X = 2*Z + 0.1*N(0,1), Y = 2*Z + 0.1*N(0,1)
+$$
+```{r, echo=FALSE}
+ggplot(gcm_s2, aes(x = Sample_Size, y = Rejection_Rate)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Rejection Rate vs. Sample Size",
+       x = "Sample Size",
+       y = "Rejection Rate") +
+  theme_minimal()
+
+```
+
