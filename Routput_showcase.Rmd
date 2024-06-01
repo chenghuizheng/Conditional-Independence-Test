@@ -27,10 +27,10 @@ loco4 <- read.csv("r_output/simulation_loco4.csv")
 
 
 \begin{itemize}
-    \item[(a)] \( Y_1 \sim X_1 + X_2 + X_3 + \epsilon \), where \( X_i \) are mutually independent.
-    \item[(b)] \( Y_2 \sim X_1 + X_2 + 0.001X_3 + \epsilon \), where \( X_i \) are mutually independent.
-    \item[(c)] \( Y_3 \sim X_1 + X_2 + X_3 + \epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
-    \item[(d)] \( Y_4 \sim X_1 + X_3 + \epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
+    \item[(a)] \( Y_1 \sim X_1 + X_2 + X_3 + X_4+ \epsilon \), where \( X_i \) are mutually independent.
+    \item[(b)] \( Y_2 \sim X_1 + X_2 + 0.001X_3 +X_4+ \epsilon \), where \( X_i \) are mutually independent.
+    \item[(c)] \( Y_3 \sim X_1 + X_2 + X_3 + X_4+\epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
+    \item[(d)] \( Y_4 \sim X_1 + X_3 +X_4 \epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
 \end{itemize}
 
 ## LOCO only
@@ -59,7 +59,7 @@ pl2 <- ggplot(loco2, aes(x = Features, y = Feature_Importance_Score)) +
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-plot_grid(pl1, pl2, labels = "AUTO")
+#plot_grid(pl1, pl2, labels = "AUTO")
 ```
 
 
@@ -88,7 +88,7 @@ pl4 <-ggplot(loco4, aes(x = Features, y = Feature_Importance_Score, color = Corr
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-plot_grid(pl3, pl4, labels = "AUTO")
+plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
 ```
 
 ## GCM filter first + LOCO
@@ -120,7 +120,7 @@ pl2 <- ggplot(alg2, aes(x = Features, y = Feature_Importance_Score)) +
 ```
 
 ```{r,echo=FALSE}
-plot_grid(pl1, pl2, labels = "AUTO")
+#plot_grid(pl1, pl2, labels = "AUTO")
 ```
 
 ```{r,echo=FALSE}
@@ -148,7 +148,7 @@ pl4 <-ggplot(alg4, aes(x = Features, y = Feature_Importance_Score, color = Corre
 ```
 
 ```{r,echo=FALSE}
-plot_grid(pl3, pl4, labels = "AUTO")
+plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
 ```
 
 
@@ -186,7 +186,7 @@ pl2 <- ggplot(gcm2, aes(x = Features, y = Rejection_Rate)) +
 ```
 
 ```{r,echo=FALSE}
-plot_grid(pl1, pl2, labels = "AUTO")
+#plot_grid(pl1, pl2, labels = "AUTO")
 ```
 
 ```{r,echo=FALSE}
@@ -214,7 +214,7 @@ pl4 <- ggplot(gcm4, aes(x = Features, y = Rejection_Rate, color = Correlation)) 
 ```
 
 ```{r,echo=FALSE}
-plot_grid(pl3, pl4, labels = "AUTO")
+plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
 ```
 
 ####################GCM Simulation###################################
