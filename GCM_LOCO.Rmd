@@ -388,128 +388,200 @@ write.csv(results4, "simulation_gcm_loco4.csv", row.names = FALSE)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%LOCO Simulation%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ```{r}
 # case a)
-set.seed(101)
-sigma_indep <- diag(1, nrow = 4)
-data_indep <- as.data.frame(mvrnorm(n = 1000, 
-                                      mu = rep(0, times = 4), 
-                                      Sigma = sigma_indep))
-colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+#  user  system elapsed 
+# 194.27    3.93  201.58 
+run_simulation_a <- function(num_simulations) {
+  results_list <- list()
   
-# Define response y
-y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + rnorm(n = 1000, mean = 0, sd = 0.01)
-data_indep["y"] <- y1
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
+          1.5 * data_indep$X5 + 3 * data_indep$X6 + 
+          5 * data_indep$X7 + 10 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO(data_indep, "regr.randomForest", "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  
+  return(aggregate_results(results_list))
+}
 
 start <- proc.time()
-LOCO_results <- LOCO(data_indep, "regr.randomForest","y")
+results_a <- run_simulation_a(10)
 print( proc.time() - start )
-write.csv(LOCO_results, "simulation_loco1.csv", row.names = FALSE)
-#    user  system elapsed 
-#   52.19    2.83   55.94 
+
+
+write.csv(results_a, "simulation_loco1.csv", row.names = FALSE)
+
+#   user  system elapsed 
+# 1876.58   39.91 1944.66 
+
 ```
+
+
+
 
 
 ```{r}
 # case b)
-set.seed(101) 
-sigma_indep <- diag(1, nrow = 4)
 
-data_indep <- as.data.frame(rmvnorm(n = 1000, 
-                                  mean = rep(0, times = 4), 
-                                  sigma = sigma_indep))
-colnames(data_indep) <- c("X1", "X2", "X3", "X4")
-# Define response y2: 
-y2  <- data_indep$X1 + data_indep$X2 + (data_indep$X3)*0.001 + rnorm(n = 1000, mean = 0, sd = 0.01) 
- 
-data_indep["y"]  <- y2
+run_simulation_b <- function(cor, num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    sigma_indep[1, 2] <- cor
+    sigma_indep[2, 1] <- cor
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
+          1.5 * data_indep$X5 + 3 * data_indep$X6 + 
+          5 * data_indep$X7 + 10 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO(data_indep, "regr.randomForest", "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  return(aggregate_results(results_list))
+}
+
+
 
 start <- proc.time()
- 
-LOCO_results <- LOCO(data_indep, "regr.randomForest","y")
+results2 <- data.frame()
+
+correlations <- c(0, 0.5, 0.75, 0.9)
+
+
+for (rho in correlations) {
+  results_b <- run_simulation_b(cor = rho, num_simulations=10)
+  
+  results_b$Correlation <- rho
+  
+  results2 <- rbind(results2, results_b)
+}
 print( proc.time() - start )
-write.csv(LOCO_results, "simulation_loco2.csv", row.names = FALSE)
-#     user  system elapsed 
-#   52.45    2.51   55.76 
+write.csv(results2, "simulation_loco2.csv", row.names = FALSE)
+#    user  system elapsed 
+# 6300.80  118.39 6523.25 
 ```
 
 
 
 ```{r}
 # case c)
+run_simulation_c <- function(snr, num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- cplx_cov_matrix(n=20, rho=0.7)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
+          1.5 * data_indep$X5 + 3 * data_indep$X6 + 
+          5 * data_indep$X7 + 10 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = snr)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO(data_indep, "regr.randomForest", "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  return(aggregate_results(results_list))
+}
+
+
+
 start <- proc.time()
 results3 <- data.frame()
 
-# Simulation parameters
-sample_size <- 1000
-correlations <- c(0, 0.5, 0.75, 0.99)
-set.seed(101)
+snrs <- c(0.1, 0.5, 0.75, 2.1)
 
-for (rho in correlations) {
-  # Specify covariance matrix
-  sigma <- diag(1, nrow = 4)
-  sigma[1, 2] <- rho
-  sigma[2, 1] <- rho
+
+for (sigma in snrs) {
+  results_c <- run_simulation_c(snr = sigma, num_simulations=10)
   
-  data <- as.data.frame(mvrnorm(n = sample_size, 
-                                mu = rep(0, times = 4), 
-                                Sigma = sigma))
-  colnames(data) <- c("X1", "X2", "X3", "X4")
+  results_c$snr <- sigma
   
-  # Define response y
-  y <- data$X1 + data$X2 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
-  data["y"] <- y
-  
-  filter_results <- LOCO(data, "regr.randomForest", "y")
-  
-  filter_results$Correlation <- rho
-  filter_results$Sample_Size <- sample_size
-  
-  results3 <- rbind(results3, filter_results)
+  results3 <- rbind(results3, results_c)
 }
 print( proc.time() - start )
 write.csv(results3, "simulation_loco3.csv", row.names = FALSE)
-#  user  system elapsed 
-# 202.63   10.77  216.25  
+#     user  system elapsed 
+# 5190.32  114.92 5366.81 
 ```
+
 
 
 ```{r}
-# case d)
-start <- proc.time()
-results4 <- data.frame()
-
-# Simulation parameters
-sample_size <- 1000
-correlations <- c(0, 0.5, 0.75, 0.99)
-set.seed(101)
-
-for (rho in correlations) {
-  # Specify covariance matrix
-  sigma <- diag(1, nrow = 4)
-  sigma[1, 2] <- rho
-  sigma[2, 1] <- rho
+# case d) non-linear
+run_simulation_d <- function(num_simulations) {
+  results_list <- list()
   
-  data <- as.data.frame(mvrnorm(n = sample_size, 
-                                mu = rep(0, times = 4), 
-                                Sigma = sigma))
-  colnames(data) <- c("X1", "X2", "X3", "X4")
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ 3*data_indep$X5 * data_indep$X6 + 
+          5 * data_indep$X7 + pmax(data_indep$X8)  + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO(data_indep, "regr.randomForest", "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
   
-  # Define response y
-  y <- data$X1  + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
-  data["y"] <- y
-  
-  filter_results <- LOCO(data, "regr.randomForest", "y")
-  
-  filter_results$Correlation <- rho
-  filter_results$Sample_Size <- sample_size
-  
-  results4 <- rbind(results4, filter_results)
+  return(aggregate_results(results_list))
 }
-print( proc.time() - start )
-write.csv(results4, "simulation_loco4.csv", row.names = FALSE)
-#  user  system elapsed 
-# 197.94   10.44  212.86 
-```
 
+start <- proc.time()
+results_d <- run_simulation_d(10)
+print( proc.time() - start )
+
+
+write.csv(results_d, "simulation_loco4.csv", row.names = FALSE)
+# 4057.2 sec
+```
 
 
 %%%%%%%%%%%%%%%%%%%%%%GCM Filter First + LOCO%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -517,125 +589,189 @@ write.csv(results4, "simulation_loco4.csv", row.names = FALSE)
 library(tidyverse)
 library(dplyr)
 # case a)
-set.seed(101)
-sigma_indep <- diag(1, nrow = 4)
-data_indep <- as.data.frame(mvrnorm(n = 1000, 
-                                      mu = rep(0, times = 4), 
-                                      Sigma = sigma_indep))
-colnames(data_indep) <- c("X1", "X2", "X3", "X4")
+run_simulation_a <- function(num_simulations) {
+  results_list <- list()
   
-# Define response y
-y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + rnorm(n = 1000, mean = 0, sd = 0.01)
-data_indep["y"] <- y1
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
+          1.5 * data_indep$X5 + 3 * data_indep$X6 + 
+          5 * data_indep$X7 + 10 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
+    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  
+  return(aggregate_results(results_list))
+}
 
 start <- proc.time()
-filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
-alg_result <-LOCO(filter_results, "regr.randomForest","y")
+results_a <- run_simulation_a(10)
 print( proc.time() - start )
-write.csv(alg_result, "simulation_alg1.csv", row.names = FALSE)
-# user  system elapsed 
-#  51.97    2.62   55.41
+
+write.csv(results_a, "simulation_alg1.csv", row.names = FALSE)
+#  user  system elapsed 
+#1111.31   27.31 1155.10 
 ```
 
 ```{r}
 # case b)
-set.seed(101)
-sigma_indep <- diag(1, nrow = 4)
 
-data_indep <- as.data.frame(rmvnorm(n = 1000, 
-                                  mean = rep(0, times = 4), 
-                                  sigma = sigma_indep))
-colnames(data_indep) <- c("X1", "X2", "X3", "X4")
-# Define response y2: 
-y2  <- data_indep$X1 + data_indep$X2 + (data_indep$X3)*0.001 + rnorm(n = 1000, mean = 0, sd = 0.01) 
- 
-data_indep["y"]  <- y2
+run_simulation_b <- function(cor, num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    sigma_indep[1, 2] <- cor
+    sigma_indep[2, 1] <- cor
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
+          1.5 * data_indep$X5 + 3 * data_indep$X6 + 
+          5 * data_indep$X7 + 10 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
+    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  return(aggregate_results(results_list))
+}
+
+
 
 start <- proc.time()
-filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
-alg_result <-LOCO(filter_results, "regr.randomForest","y")
+results2 <- data.frame()
+
+correlations <- c(0, 0.5, 0.75, 0.9)
+
+
+for (rho in correlations) {
+  results_b <- run_simulation_b(cor = rho, num_simulations=10)
+  
+  results_b$Correlation <- rho
+  
+  results2 <- rbind(results2, results_b)
+}
+
 print( proc.time() - start )
-write.csv(alg_result, "simulation_alg2.csv", row.names = FALSE)
+write.csv(results2, "simulation_alg2.csv", row.names = FALSE)
 #   user  system elapsed 
-#  43.36    2.61   46.53 
+# 5815.61  147.71 6110.84 
 ```
 
 
 ```{r}
 # case c)
+run_simulation_c <- function(snr, num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- cplx_cov_matrix(n=20, rho=0.7)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
+          1.5 * data_indep$X5 + 3 * data_indep$X6 + 
+          5 * data_indep$X7 + 10 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = snr)
+    data_indep["y"] <- y1
+    
+    filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
+    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  return(aggregate_results(results_list))
+}
+
+
+
 start <- proc.time()
 results3 <- data.frame()
 
-# Simulation parameters
-sample_size <- 1000
-correlations <- c(0, 0.5, 0.75, 0.99)
-set.seed(101)
+snrs <- c(0.1, 0.5, 0.75, 2.1)
 
-for (rho in correlations) {
-  # Specify covariance matrix
-  sigma <- diag(1, nrow = 4)
-  sigma[1, 2] <- rho
-  sigma[2, 1] <- rho
+
+for (sigma in snrs) {
+  results_c <- run_simulation_c(snr = sigma, num_simulations=10)
   
-  data <- as.data.frame(mvrnorm(n = sample_size, 
-                                mu = rep(0, times = 4), 
-                                Sigma = sigma))
-  colnames(data) <- c("X1", "X2", "X3", "X4")
+  results_c$snr <- sigma
   
-  # Define response y
-  y <- data$X1 + data$X2 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
-  data["y"] <- y
-  
-  filter_results <- GCM_filter(data, "regr.randomForest","y")[[2]]
-  alg_result <-LOCO(filter_results, "regr.randomForest","y")
-  
-  alg_result$Correlation <- rho
-  alg_result$Sample_Size <- sample_size
-  
-  results3 <- rbind(results3, alg_result)
+  results3 <- rbind(results3, results_c)
 }
 print( proc.time() - start )
 write.csv(results3, "simulation_alg3.csv", row.names = FALSE)
-#  user  system elapsed 
-# 194.64    9.71  207.48 
+#   user  system elapsed 
+#5704.52  155.75 5957.70  
 ```
 
 
 ```{r}
-# case d)
-start <- proc.time()
-results4 <- data.frame()
-
-# Simulation parameters
-sample_size <- 1000
-correlations <- c(0, 0.5, 0.75, 0.99)
-set.seed(101)
-
-for (rho in correlations) {
-  # Specify covariance matrix
-  sigma <- diag(1, nrow = 4)
-  sigma[1, 2] <- rho
-  sigma[2, 1] <- rho
+# case d) non-linear
+run_simulation_d <- function(num_simulations) {
+  results_list <- list()
   
-  data <- as.data.frame(mvrnorm(n = sample_size, 
-                                mu = rep(0, times = 4), 
-                                Sigma = sigma))
-  colnames(data) <- c("X1", "X2", "X3", "X4")
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ 3*data_indep$X5 * data_indep$X6 + 
+          5 * data_indep$X7 + pmax(data_indep$X8)  + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
+    filter_results["y"] <- y1
+    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
   
-  # Define response y
-  y <- data$X1 + data$X3 + rnorm(n = sample_size, mean = 0, sd = 0.01)
-  data["y"] <- y
-  
-  filter_results <- GCM_filter(data, "regr.randomForest","y")[[2]]
-  alg_result <-LOCO(filter_results, "regr.randomForest","y")
-  
-  alg_result$Correlation <- rho
-  alg_result$Sample_Size <- sample_size
-  
-  results4 <- rbind(results4, alg_result)
+  return(aggregate_results(results_list))
 }
+
+start <- proc.time()
+results_d <- run_simulation_d(10)
 print( proc.time() - start )
-write.csv(results4, "simulation_alg4.csv", row.names = FALSE)
-#   user  system elapsed 
-# 170.50    8.11  180.88 
+
+
+write.csv(results_d, "simulation_alg4.csv", row.names = FALSE)
+#     user  system elapsed 
+#1530.30   32.86 1588.26 
 ```

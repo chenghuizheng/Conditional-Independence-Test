@@ -8,9 +8,9 @@ library(dplyr)
 LOCO <- function(data,learner,target){
   task = makeRegrTask(data = data , target = target)
   # Perform 5-fold CV
-  set.seed(101)
-  #rin = makeResampleInstance("CV", iters = 5, task=task)
-  rin = makeResampleInstance("Subsample", iters = 5, split = 4/5, task = task)
+  #set.seed(101)
+  rin = makeResampleInstance("CV", iters = 5, task=task)
+  #rin = makeResampleInstance("Subsample", iters = 5, split = 4/5, task = task)
   learnerLOCO = makeLearner(learner)
   feat = getTaskFeatureNames(task)
   res = resample(learner = learnerLOCO, task = task, 
@@ -21,10 +21,10 @@ LOCO <- function(data,learner,target){
     taskfeat = dropFeatures(task, feat[i])
     resfeat = resample(learner = learnerLOCO, task = taskfeat, resampling = rin ,show.info = FALSE);
     # "aggr" in regression task, by default is mean of mse, you define specific performance measure
-    importance = data.frame(abs(resfeat$aggr-res$aggr))
+    importance = data.frame(resfeat$aggr-res$aggr)
     feature = c(getTaskFeatureNames(task))
     resultLOCO[i] = importance
-    resinstanceLOCO[,i] = data.frame(abs(resfeat$measures.test[,2]-res$measures.test[,2]))
+    resinstanceLOCO[,i] = data.frame(resfeat$measures.test[,2]-res$measures.test[,2])
   } # under each fold CV, the difference in mse
   rank_l_s = rank(-resultLOCO) # the largest score is rank 1, rank from the largest to smallest
   rownames(resultLOCO) = "Feature Importance Score"
@@ -64,7 +64,7 @@ GCM_filter <- function(data,learner,target, alpha = 0.05){
     R.sq <- R^2
     meanR <- mean(R)
     test.stat <- sqrt(nn) * meanR / sqrt(mean(R.sq) - meanR^2)
-    p.value <- 2 * pnorm(abs(test.stat), lower.tail = FALSE)
+    p.value <- as.numeric(2 * pnorm(abs(test.stat), lower.tail = FALSE))
     new_row <- data.frame(Feature = feat[i],test.statistics = test.stat, p.val = p.value, rejection = p.value < alpha)
     resultGCM <- rbind(resultGCM, new_row)
   }
@@ -75,3 +75,26 @@ GCM_filter <- function(data,learner,target, alpha = 0.05){
 
 # > task[["type"]]
 #[1] "regr"
+
+cplx_cov_matrix <- function(n, rho) {
+  cov_matrix <- matrix(0, n, n)
+  
+  # Fill in the matrix according to x_{i,j} = rho^{|i-j|}
+  for (i in 1:n) {
+    for (j in 1:n) {
+      cov_matrix[i, j] <- rho^abs(i - j)
+    }
+  }
+  return(cov_matrix)
+}
+
+
+aggregate_results <- function(results_list) {
+        combined_results <- do.call(rbind, results_list)
+        combined_results <- aggregate(. ~ Features, data = combined_results, 
+        FUN = function(x) c(mean = mean(x)))
+  return(combined_results)
+}
+
+
+#aggregated_results <- aggregate_results(results_list)
