@@ -25,17 +25,31 @@ loco3 <- read.csv("r_output/simulation_loco3.csv")
 loco4 <- read.csv("r_output/simulation_loco4.csv")
 ```
 
+### (a) Linear Model with Independent Predictors
 
-\begin{itemize}
-    \item[(a)] \( Y_1 \sim X_1 + X_2 + X_3 + X_4+ \epsilon \), where \( X_i \) are mutually independent.
-    \item[(b)] \( Y_2 \sim X_1 + X_2 + 0.001X_3 +X_4+ \epsilon \), where \( X_i \) are mutually independent.
-    \item[(c)] \( Y_3 \sim X_1 + X_2 + X_3 + X_4+\epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
-    \item[(d)] \( Y_4 \sim X_1 + X_3 +X_4 \epsilon \), where \( X_1 \not\perp\!\!\!\perp X_2 \).
-\end{itemize}
+\[ Y_1 \sim X_1 + X_2 + X_3 + X_4 + 1.5X_5 + 3X_6 + 5X_7 + 10X_8 + \epsilon \]
+
+### (b) Linear Model with Correlated Predictors
+
+\[ Y_2 \sim X_1 + X_2 + X_3 + X_4 + 1.5X_5 + 3X_6 + 5X_7 + 10X_8 + \epsilon \]
+
+Where \(X_1 \not\perp\!\!\!\perp X_2\) and \(\text{cov}(X_1, X_2) = 0, 0.5, 0.75, 0.9\) respectively.
+
+### (c) Linear Model with Correlated Predictors and Different SNR
+
+\[ Y_3 \sim X_1 + X_2 + X_3 + X_4 + 1.5X_5 + 3X_6 + 5X_7 + 10X_8 + \epsilon \]
+
+Where \(\text{cov}(X_i, X_j) = \rho^{|i-j|}\) and \(\epsilon \sim N(0, \sigma^2)\) with \(\sigma^2 = 0.1, 0.5, 0.75, 2.1\).
+
+### (d) Non-linear Model 
+
+\[ Y_4 \sim 2X_1^2 + 2\cos(4X_2) + \sin(X_3) + \exp\left(\frac{X_4}{3}\right) + 3X_5 X_6 + 5 X_7 + \max(0, X_8) \]
+
 
 ## LOCO only
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
+loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
 pl1 <- ggplot(loco1, aes(x = Features, y = Feature_Importance_Score)) +
   geom_point(color = 'blue', size = 3) +
   geom_line(aes(group = 1), color = 'blue') +
@@ -46,49 +60,123 @@ pl1 <- ggplot(loco1, aes(x = Features, y = Feature_Importance_Score)) +
   theme_minimal()
 ```
 
-
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-pl2 <- ggplot(loco2, aes(x = Features, y = Feature_Importance_Score)) +
+loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
+ pl1 <- ggplot(loco1, aes(x = Features, y = Rank)) +
   geom_point(color = 'blue', size = 3) +
-  geom_line(aes(group = 1), color = 'blue') +
-  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
-  labs(title = 'Case b): ',
+  geom_line(aes(group = 1), color = 'blue')  +
+  geom_hline(yintercept = 8, linetype = "dashed", color = "red") +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal() 
+pl1 
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
+loco2$Features <- factor(loco2$Features, levels = paste0("X", 1:20))
+loco2$Correlation <- as.factor(loco2$Correlation)
+pl2 <-ggplot(loco2, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case b):',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+
+
+pl2 
+
 ```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+loco2$Features <- factor(loco2$Features, levels = paste0("X", 1:20))
+loco2$Correlation <- as.factor(loco2$Correlation)
+ pl2 <- ggplot(loco2, aes(x = Features, y = Rank, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 8, linetype = "dashed", color = "red") +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal() 
+
+
+pl2 
+
+```
+
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 #plot_grid(pl1, pl2, labels = "AUTO")
 ```
 
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
-loco3$Correlation <- as.factor(loco3$Correlation)
-pl3 <- ggplot(loco3, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
+loco3$Features <- factor(loco3$Features, levels = paste0("X", 1:20))
+loco3$snr <- as.factor(loco3$snr)
+pl3 <- ggplot(loco3, aes(x = Features, y = Feature_Importance_Score, color = snr)) +
   geom_point(size = 3) +
-  geom_line(aes(group = Correlation), size = 1)+
+  geom_line(aes(group = snr), size = 1)+
   scale_color_brewer(palette = "Set1") +
   labs(title = 'Case c): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+pl3
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
- loco4$Correlation <- as.factor(loco4$Correlation)
-pl4 <-ggplot(loco4, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+loco3$Features <- factor(loco3$Features, levels = paste0("X", 1:20))
+loco3$snr <- as.factor(loco3$snr)
+pl3 <- ggplot(loco3, aes(x = Features, y = Rank, color = snr)) +
   geom_point(size = 3) +
-  geom_line(aes(group = Correlation), size = 1)+
+  geom_line(aes(group = snr), size = 1)+
+  geom_hline(yintercept = 8, linetype = "dashed", color = "red")+
   scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal()
+pl3
+```
+
+
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
+loco4$Features <- factor(loco4$Features, levels = paste0("X", 1:20))
+pl4 <- ggplot(loco4, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
   labs(title = 'Case d): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+pl4
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
+loco4$Features <- factor(loco4$Features, levels = paste0("X", 1:20))
+pl4 <- ggplot(loco4, aes(x = Features, y = Rank)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 8, linetype = "dashed", color = "red") +
+  labs(title = 'Case d): ',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal()
+pl4
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+#plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
 ```
 
 ## GCM filter first + LOCO
@@ -99,7 +187,8 @@ alg3 <- read.csv("r_output/simulation_alg3.csv")
 alg4 <- read.csv("r_output/simulation_alg4.csv")
 ```
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
+alg1$Features<-factor(alg1$Features, levels = paste0("X", 1:20))
 pl1 <- ggplot(alg1, aes(x = Features, y = Feature_Importance_Score)) +
   geom_point(color = 'blue', size = 3) +
   geom_line(aes(group = 1), color = 'blue') +
@@ -108,52 +197,105 @@ pl1 <- ggplot(alg1, aes(x = Features, y = Feature_Importance_Score)) +
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+pl1
 
-pl2 <- ggplot(alg2, aes(x = Features, y = Feature_Importance_Score)) +
-  geom_point(color = 'blue', size = 3) +
-  geom_line(aes(group = 1), color = 'blue') +
-  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
-  labs(title = 'Case b): ',
+alg2$Features <- factor(alg2$Features, levels = paste0("X", 1:20))
+alg2$Correlation <- as.factor(alg2$Correlation)
+pl2 <-ggplot(alg2, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case b):',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+pl2 
 ```
 
 ```{r,echo=FALSE}
-#plot_grid(pl1, pl2, labels = "AUTO")
-```
+alg1$Features<-factor(alg1$Features, levels = paste0("X", 1:20))
+pl1 <- ggplot(alg1, aes(x = Features, y = Rank)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  labs(title = 'Case a):',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal()
+pl1
 
-```{r,echo=FALSE}
-alg3$Correlation <- as.factor(alg3$Correlation)
-pl3 <- ggplot(alg3, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+alg2$Features <- factor(alg2$Features, levels = paste0("X", 1:20))
+alg2$Correlation <- as.factor(alg2$Correlation)
+pl2 <-ggplot(alg2, aes(x = Features, y = Rank, color = Correlation)) +
   geom_point(size = 3) +
   geom_line(aes(group = Correlation), size = 1)+
+  scale_color_brewer(palette = "Set1") +
+  labs(title = 'Case b):',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal()
+pl2 
+```
+
+```{r,echo=FALSE, eval=FALSE}
+alg3$Features <- factor(alg3$Features, levels = paste0("X", 1:20))
+alg3$snr <- as.factor(alg3$snr)
+pl3 <- ggplot(alg3, aes(x = Features, y = Feature_Importance_Score, color = snr)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1)+
   scale_color_brewer(palette = "Set1") +
   labs(title = 'Case c): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+pl3
 ```
 
 ```{r,echo=FALSE}
-alg4$Correlation <- as.factor(alg4$Correlation)
-pl4 <-ggplot(alg4, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+alg3$Features <- factor(alg3$Features, levels = paste0("X", 1:20))
+alg3$snr <- as.factor(alg3$snr)
+pl3 <- ggplot(alg3, aes(x = Features, y = Rank, color = snr)) +
   geom_point(size = 3) +
-  geom_line(aes(group = Correlation), size = 1)+
+  geom_line(aes(group = snr), size = 1)+
   scale_color_brewer(palette = "Set1") +
-  labs(title = 'Case d):',
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal()
+pl3
+```
+
+```{r,echo=FALSE,eval=FALSE}
+alg4$Features <- factor(alg4$Features, levels = paste0("X", 1:20))
+pl4 <- ggplot(alg4, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_errorbar(aes(ymin = LB, ymax = UB), width = 0.2, color = 'black') +
+  labs(title = 'Case d): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
+pl4
 ```
 
 ```{r,echo=FALSE}
-plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
+alg4$Features <- factor(alg4$Features, levels = paste0("X", 1:20))
+pl4 <- ggplot(alg4, aes(x = Features, y = Rank)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue')  +
+  labs(title = 'Case d): ',
+       x = 'Features',
+       y = 'Averaged Rank') +
+  theme_minimal()
+pl4
 ```
 
+```{r,echo=FALSE}
+#plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
+```
 
+\pagebreak
 ## GCM only
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 gcm1 <- read.csv("r_output/simulation_gcm_loco1.csv")
 gcm2 <- read.csv("r_output/simulation_gcm_loco2.csv")
 gcm3 <- read.csv("r_output/simulation_gcm_loco3.csv")
@@ -166,7 +308,7 @@ gcm4$Features <- rep(feature,times=4)
 
 ```
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 pl1 <- ggplot(gcm1, aes(x = Features, y = Rejection_Rate)) +
   geom_point(color = 'blue', size = 3) +
   geom_line(aes(group = 1), color = 'blue')+
@@ -189,7 +331,7 @@ pl2 <- ggplot(gcm2, aes(x = Features, y = Rejection_Rate)) +
 #plot_grid(pl1, pl2, labels = "AUTO")
 ```
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 gcm3$Correlation <- as.factor(gcm3$Correlation)
 pl3 <- ggplot(gcm3, aes(x = Features, y = Rejection_Rate, color = Correlation)) +
   geom_point(size = 3) +
@@ -201,7 +343,7 @@ pl3 <- ggplot(gcm3, aes(x = Features, y = Rejection_Rate, color = Correlation)) 
   theme_minimal()
 ```
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 gcm4$Correlation <- as.factor(gcm4$Correlation)
 pl4 <- ggplot(gcm4, aes(x = Features, y = Rejection_Rate, color = Correlation)) +
   geom_point(size = 3) +
@@ -213,12 +355,12 @@ pl4 <- ggplot(gcm4, aes(x = Features, y = Rejection_Rate, color = Correlation)) 
   theme_minimal()
 ```
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 plot_grid(pl1,pl2,pl3, pl4, labels = "AUTO")
 ```
-
+\pagebreak
 ####################GCM Simulation###################################
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 gcm_s1 <- read.csv("r_output/simulation_gcm1.csv")
 gcm_s2 <- read.csv("r_output/simulation_gcm2.csv")
 ```
@@ -227,7 +369,7 @@ $$
 a) Z \sim N(0,1), X = 2*sin(Z) + 0.1*N(0,1), Y = 2*sin(Z) + 0.1*N(0,1)
 $$
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 
 ggplot(gcm_s1, aes(x = Sample_Size, y = Rejection_Rate)) +
   geom_line() +
@@ -240,7 +382,7 @@ ggplot(gcm_s1, aes(x = Sample_Size, y = Rejection_Rate)) +
 $$
 b) Z \sim N(0,1), X = 2*Z + 0.1*N(0,1), Y = 2*Z + 0.1*N(0,1)
 $$
-```{r, echo=FALSE}
+```{r, echo=FALSE,eval=FALSE}
 ggplot(gcm_s2, aes(x = Sample_Size, y = Rejection_Rate)) +
   geom_line() +
   geom_point() +
