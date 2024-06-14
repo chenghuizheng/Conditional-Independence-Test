@@ -8,7 +8,6 @@ library(dplyr)
 LOCO <- function(data,learner,target){
   task = makeRegrTask(data = data , target = target)
   # Perform 5-fold CV
-  #set.seed(101)
   rin = makeResampleInstance("CV", iters = 5, task=task)
   #rin = makeResampleInstance("Subsample", iters = 5, split = 4/5, task = task)
   learnerLOCO = makeLearner(learner)
@@ -17,25 +16,55 @@ LOCO <- function(data,learner,target){
                  resampling = rin ,show.info = FALSE)
   resultLOCO = data.frame(matrix(nrow = 1, ncol = length(feat))) # create empty dataframe to store feature importance score
   resinstanceLOCO = data.frame(matrix(nrow = 5, ncol=length(feat)))
+  #scaled_test_stat = data.frame(matrix(nrow = 1, ncol = length(feat)))
+  observed_diff = numeric(length(feat))
+  sd_diff = numeric(length(feat))
+  
   for(i in 1:length(feat)){
     taskfeat = dropFeatures(task, feat[i])
     resfeat = resample(learner = learnerLOCO, task = taskfeat, resampling = rin ,show.info = FALSE);
-    # "aggr" in regression task, by default is mean of mse, you define specific performance measure
-    importance = data.frame(resfeat$aggr-res$aggr)
+    # "aggr" in regression task, by default is mean of mse, you can define specific performance measure
+    # importance = data.frame(resfeat$aggr-res$aggr)
+    # Here, we use difference of prediction error to measure feature importance
+    importance = mean(abs(resfeat$pred$data$response - resfeat$pred$data$truth) - 
+                        abs(res$pred$data$response - res$pred$data$truth))
+    # Store the observed difference
+    observed_diff[i] = importance
+    
+    # Calculate the standard deviation of the differences
+    sd_diff[i] = sd(sapply(1:5, function(k) {
+      abs(resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
+            resfeat$pred$data[resfeat$pred$data$iter == k, "truth"]) - 
+        abs(res$pred$data[res$pred$data$iter == k, "response"] - 
+              res$pred$data[res$pred$data$iter == k, "truth"])
+    }))
+    ###!!!scaled_test_stat[i] = mean(scale(abs(resfeat$pred$data$response - resfeat$pred$data$truth)))
+    ###!!!p_val[i] = 2 * pnorm(abs(scaled_test_stat[i]), lower.tail = FALSE)
     feature = c(getTaskFeatureNames(task))
     resultLOCO[i] = importance
-    resinstanceLOCO[,i] = data.frame(resfeat$measures.test[,2]-res$measures.test[,2])
-  } # under each fold CV, the difference in mse
+    #resinstanceLOCO[,i] = data.frame(resfeat$measures.test[,2]-res$measures.test[,2])# under each fold CV, the difference in mse
+    resinstanceLOCO[,i] = sapply(1:5, function(k) {
+      mean(abs(resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
+                 resfeat$pred$data[resfeat$pred$data$iter == k, "truth"]) - 
+             abs(res$pred$data[res$pred$data$iter == k, "response"] - 
+                   res$pred$data[res$pred$data$iter == k, "truth"]))
+    }) # compute difference in prediction error under each fold
+  } 
   rank_l_s = rank(-resultLOCO) # the largest score is rank 1, rank from the largest to smallest
   rownames(resultLOCO) = "Feature Importance Score"
   lb = data.frame(apply(resinstanceLOCO, 2, quantile, probs = 0.05))
   ub = data.frame(apply(resinstanceLOCO, 2, quantile, probs = 0.95))
-  FIP = data.frame(Feature_Importance_Score = t(resultLOCO),
-                   Feature = feat,
+  scaled_test_stat = observed_diff / sd_diff
+  p_val = 2 * pnorm(-abs(scaled_test_stat))
+  FIP = data.frame(Feature = feat,
+                   Feature_Importance_Score = t(resultLOCO),
+                   Scaled_Test_Statistics = scaled_test_stat,
+                   P.Value = p_val,
                    Rank = rank_l_s,
                    LB = lb,
                    UB = ub)
-  colnames(FIP) = c("Feature_Importance_Score", "Features", "Rank", "LB", "UB")
+  colnames(FIP) = c("Features", "Feature_Importance_Score", "Scaled_Test_Statistics"
+                     ,"P.Value", "Rank", "LB", "UB")
   rownames(FIP) = c(rep(1:length(feat)))
   return(FIP)
 }
@@ -79,7 +108,7 @@ GCM_filter <- function(data,learner,target, alpha = 0.05){
 cplx_cov_matrix <- function(n, rho) {
   cov_matrix <- matrix(0, n, n)
   
-  # Fill in the matrix according to x_{i,j} = rho^{|i-j|}
+  #x_{i,j} = rho^{|i-j|}
   for (i in 1:n) {
     for (j in 1:n) {
       cov_matrix[i, j] <- rho^abs(i - j)
@@ -97,4 +126,3 @@ aggregate_results <- function(results_list) {
 }
 
 
-#aggregated_results <- aggregate_results(results_list)
