@@ -19,10 +19,16 @@ library(cowplot)
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-loco1 <- read.csv("r_output/simulation_loco1.csv")
-loco2 <- read.csv("r_output/simulation_loco2.csv")
-loco3 <- read.csv("r_output/simulation_loco3.csv")
-loco4 <- read.csv("r_output/simulation_loco4.csv")
+loconew1 <- read.csv("r_output/simulation_locoallnew1.csv")
+lococvnew1 <- read.csv("r_output/simulation_lococvnew1.csv")
+lococv2 <- read.csv("r_output/simulation_lococv2.csv")
+locoall2 <- read.csv("r_output/simulation_locoall2.csv")
+lococv3 <- read.csv("r_output/simulation_lococv3.csv")
+locoall3 <- read.csv("r_output/simulation_locoall3.csv")
+lococv4 <- read.csv("r_output/simulation_lococv4.csv")
+locoall4 <- read.csv("r_output/simulation_locoall4.csv")
+#loco3 <- read.csv("r_output/simulation_loco3.csv")
+#loco4 <- read.csv("r_output/simulation_loco4.csv")
 
 ```
 
@@ -48,8 +54,52 @@ Where \(\text{cov}(X_i, X_j) = \rho^{|i-j|}\) and \(\epsilon \sim N(0, \sigma^2)
 
 
 ## LOCO only
-
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
+loconew1$Features <- factor(loconew1$Features, levels = paste0("X", 1:20))
+pl11 <- ggplot(loconew1, aes(x = Features, y = P.Value)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+pl13 <- ggplot(loconew1, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+
+lococvnew1$Features <- factor(lococvnew1$Features, levels = paste0("X", 1:20))
+pl12 <- ggplot(lococvnew1, aes(x = Features, y = P.Value)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+pl14 <- ggplot(lococvnew1, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+plot_grid(pl11, pl12, labels = "AUTO")
+plot_grid(pl13, pl14, labels = "AUTO")
+```
+
+
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
 pl1 <- ggplot(loco1, aes(x = Features, y = Feature_Importance_Score)) +
   geom_point(color = 'blue', size = 3) +
@@ -61,7 +111,7 @@ pl1 <- ggplot(loco1, aes(x = Features, y = Feature_Importance_Score)) +
 pl1
 ```
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE, eval=FALSE}
 loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
  pl11 <- ggplot(loco1, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
@@ -78,23 +128,56 @@ loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
 
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-loco2$Features <- factor(loco2$Features, levels = paste0("X", 1:20))
-loco2$Correlation <- as.factor(loco2$Correlation)
-pl2 <-ggplot(loco2, aes(x = Features, y = Feature_Importance_Score, color = Correlation)) +
+locoall2$Features <- factor(locoall2$Features, levels = paste0("X", 1:20))
+locoall2$Correlation <- as.factor(locoall2$Correlation)
+pl21 <- ggplot(locoall2, aes(x = Features, y = P.Value, color = Correlation)) +
   geom_point(size = 3) +
-  geom_line(aes(group = Correlation), size = 1)+
+  geom_line(aes(group = Correlation), size = 1) +
   scale_color_brewer(palette = "Set1") +
-  labs(title = 'Case b):',
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+pl23 <- ggplot(locoall2, aes(x = Features, y = Feature_Importance_Score,color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1")  +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
+  labs(title = 'Case b): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
 
+lococv2$Features <- factor(lococv2$Features, levels = paste0("X", 1:20))
+lococv2$Correlation <- as.factor(lococv2$Correlation)
+pl22 <- ggplot(lococv2, aes(x = Features, y = P.Value,color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1") + 
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
 
-pl2 
+pl24 <- ggplot(lococv2, aes(x = Features, y = Feature_Importance_Score,color =Correlation)) +
+  geom_point( size = 3)+
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1") + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+plot_grid(pl21, pl22, labels = "AUTO")
+plot_grid(pl23, pl24, labels = "AUTO")
 
 ```
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 loco2$Features <- factor(loco2$Features, levels = paste0("X", 1:20))
 loco2$Correlation <- as.factor(loco2$Correlation)
  pl22 <- ggplot(loco2, aes(x = Features, y = P.Value, color = Correlation)) +
@@ -119,20 +202,53 @@ loco2$Correlation <- as.factor(loco2$Correlation)
 
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-loco3$Features <- factor(loco3$Features, levels = paste0("X", 1:20))
-loco3$snr <- as.factor(loco3$snr)
-pl3 <- ggplot(loco3, aes(x = Features, y = Feature_Importance_Score, color = snr)) +
+locoall3$Features <- factor(locoall3$Features, levels = paste0("X", 1:20))
+locoall3$snr <- as.factor(locoall3$snr)
+pl31 <- ggplot(locoall3, aes(x = Features, y = P.Value, color = snr)) +
   geom_point(size = 3) +
-  geom_line(aes(group = snr), size = 1)+
+  geom_line(aes(group = snr), size = 1) +
   scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+pl33 <- ggplot(locoall3, aes(x = Features, y = Feature_Importance_Score,color = snr)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1")  +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
   labs(title = 'Case c): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
-pl3
+
+lococv3$Features <- factor(lococv3$Features, levels = paste0("X", 1:20))
+lococv3$snr <- as.factor(lococv3$snr)
+pl32 <- ggplot(lococv3, aes(x = Features, y = P.Value,color = snr)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1") + 
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+pl34 <- ggplot(lococv3, aes(x = Features, y = Feature_Importance_Score,color =snr)) +
+  geom_point( size = 3)+
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1") + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+plot_grid(pl31, pl32, labels = "AUTO")
+plot_grid(pl33, pl34, labels = "AUTO")
 ```
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 loco3$Features <- factor(loco3$Features, levels = paste0("X", 1:20))
 loco3$snr <- as.factor(loco3$snr)
 pl33 <- ggplot(loco3, aes(x = Features, y = P.Value, color = snr)) +
@@ -150,18 +266,47 @@ pl33 <- ggplot(loco3, aes(x = Features, y = P.Value, color = snr)) +
 
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-loco4$Features <- factor(loco4$Features, levels = paste0("X", 1:20))
-pl4 <- ggplot(loco4, aes(x = Features, y = Feature_Importance_Score)) +
+locoall4$Features <- factor(locoall4$Features, levels = paste0("X", 1:20))
+pl41 <- ggplot(locoall4, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
-  geom_line(aes(group = 1), color = 'blue')  +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case d): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+pl43 <- ggplot(locoall4, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
   labs(title = 'Case d): ',
        x = 'Features',
        y = 'Feature Importance Score') +
   theme_minimal()
-pl4
+
+lococv4$Features <- factor(lococv4$Features, levels = paste0("X", 1:20))
+pl42 <- ggplot(lococv4, aes(x = Features, y = P.Value)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case d): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+pl44 <- ggplot(lococv4, aes(x = Features, y = Feature_Importance_Score)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue') +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "green")  +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Feature Importance Score') +
+  theme_minimal()
+plot_grid(pl41, pl42, labels = "AUTO")
+plot_grid(pl43, pl44, labels = "AUTO")
 ```
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 loco4$Features <- factor(loco4$Features, levels = paste0("X", 1:20))
 pl44 <- ggplot(loco4, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
@@ -175,10 +320,6 @@ pl44 <- ggplot(loco4, aes(x = Features, y = P.Value)) +
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-pl11
-pl22
-pl33
-pl44
 #plot_grid(pl11,pl22, labels = "AUTO")
 ```
 

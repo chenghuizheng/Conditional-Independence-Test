@@ -1,11 +1,11 @@
 
 library(tidyverse)
 library(dplyr)
-# LOCO code from iml_methods_limitations/code/03_6_fi_correlated.R
+# LOCO is drawn on iml_methods_limitations/code/03_6_fi_correlated.R
 # "mlr" package description https://cran.r-project.org/web/packages/mlr/mlr.pdf
 
 
-LOCO <- function(data,learner,target,alpha = 0.05){
+LOCO_cv <- function(data,learner,target,alpha = 0.05){
   task = makeRegrTask(data = data , target = target)
   # Perform 5-fold CV
   rin = makeResampleInstance("CV", iters = 5, task=task)
@@ -23,28 +23,28 @@ LOCO <- function(data,learner,target,alpha = 0.05){
     taskfeat = dropFeatures(task, feat[i])
     resfeat = resample(learner = learnerLOCO, task = taskfeat, resampling = rin ,show.info = FALSE);
     # "aggr" in regression task, by default is mean of mse, you can define specific performance measure
-    # importance = data.frame(resfeat$aggr-res$aggr)
+    importance = as.numeric(resfeat$aggr-res$aggr)
     # Here, we use difference of prediction error to measure feature importance
-    importance = mean(resfeat$pred$data$response - resfeat$pred$data$truth - 
-                        (res$pred$data$response - res$pred$data$truth))
+    #importance = mean(resfeat$pred$data$response - resfeat$pred$data$truth - 
+                        #(res$pred$data$response - res$pred$data$truth))
     observed_diff[i] = importance
     
     # Calculate the standard deviation of the differences
     sd_diff[i] = sd(sapply(1:5, function(k) {
-      mean(resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
-            resfeat$pred$data[resfeat$pred$data$iter == k, "truth"]) - 
+      mean((resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
+            resfeat$pred$data[resfeat$pred$data$iter == k, "truth"]))^2 - 
         mean((res$pred$data[res$pred$data$iter == k, "response"] - 
-              res$pred$data[res$pred$data$iter == k, "truth"]))
+              res$pred$data[res$pred$data$iter == k, "truth"])^2)
     }))
     feature = c(getTaskFeatureNames(task))
     resultLOCO[i] = importance
-    #resinstanceLOCO[,i] = data.frame(resfeat$measures.test[,2]-res$measures.test[,2])# under each fold CV, the difference in mse
-    resinstanceLOCO[,i] = sapply(1:5, function(k) {
-      mean(resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
-                 resfeat$pred$data[resfeat$pred$data$iter == k, "truth"] - 
-             (res$pred$data[res$pred$data$iter == k, "response"] - 
-                   res$pred$data[res$pred$data$iter == k, "truth"]))
-    }) # compute difference in prediction error under each fold
+    resinstanceLOCO[,i] = data.frame(resfeat$measures.test[,2]-res$measures.test[,2])# under each fold CV, the difference in mse
+    #resinstanceLOCO[,i] = sapply(1:5, function(k) {
+      #mean(resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
+                # resfeat$pred$data[resfeat$pred$data$iter == k, "truth"] - 
+             #(res$pred$data[res$pred$data$iter == k, "response"] - 
+                   #res$pred$data[res$pred$data$iter == k, "truth"]))
+   # }) # compute difference in prediction error under each fold
   } 
   rank_l_s = rank(-resultLOCO) # the largest score is rank 1, rank from the largest to smallest
   rownames(resultLOCO) = "Feature Importance Score"
@@ -64,6 +64,58 @@ LOCO <- function(data,learner,target,alpha = 0.05){
   rownames(FIP) = c(rep(1:length(feat)))
   return(FIP)
 }
+
+
+
+LOCO_all <- function(data, learner, target, alpha = 0.05) {
+  task = makeRegrTask(data = data, target = target)
+  learnerLOCO = makeLearner(learner)
+  feat = getTaskFeatureNames(task)
+  
+  # Train and predict using the entire dataset using mse
+  model = train(learnerLOCO, task)
+  pred = predict(model, task)
+  allfeat_error = mean((pred$data$response - pred$data$truth)^2)
+  
+  resultLOCO = numeric(length(feat))
+  observed_diff = numeric(length(feat))
+  sd_diff = numeric(length(feat))
+  
+  for (i in 1:length(feat)) {
+    taskfeat = dropFeatures(task, feat[i])
+    model_feat = train(learnerLOCO, taskfeat)
+    pred_feat = predict(model_feat, taskfeat)
+    feat_error =  mean((pred_feat$data$response - pred_feat$data$truth)^2) 
+    
+    importance = feat_error - allfeat_error
+    observed_diff[i] = importance
+    sd_diff[i] =sd((pred_feat$data$response - pred_feat$data$truth)^2 - 
+                       (pred$data$response - pred$data$truth)^2)
+    
+    resultLOCO[i] = importance
+  }
+  
+  rank_l_s = rank(-resultLOCO) # the largest score is rank 1, rank from the largest to smallest
+  lb = observed_diff - qnorm(1 - alpha / 2) * sd_diff
+  ub = observed_diff + qnorm(1 - alpha / 2) * sd_diff
+  test_stat = observed_diff / sd_diff
+  p_val = 2 * pnorm(-abs(test_stat))
+  
+  FIP = data.frame(Feature = feat,
+                   Feature_Importance_Score = resultLOCO,
+                   Test_Statistics = test_stat,
+                   P.Value = p_val,
+                   Rank = rank_l_s,
+                   LB = lb,
+                   UB = ub)
+  
+  colnames(FIP) = c("Features", "Feature_Importance_Score", "Test_Statistics",
+                    "P.Value", "Rank", "LB", "UB")
+  
+  return(FIP)
+}
+
+
 
 
 
