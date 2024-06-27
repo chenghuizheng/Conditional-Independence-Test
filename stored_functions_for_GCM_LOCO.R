@@ -9,7 +9,6 @@ LOCO_cv <- function(data,learner,target,alpha = 0.05){
   task = makeRegrTask(data = data , target = target)
   # Perform 5-fold CV
   rin = makeResampleInstance("CV", iters = 5, task=task)
-  #rin = makeResampleInstance("Subsample", iters = 5, split = 4/5, task = task)
   learnerLOCO = makeLearner(learner)
   feat = getTaskFeatureNames(task)
   res = resample(learner = learnerLOCO, task = task, 
@@ -17,7 +16,7 @@ LOCO_cv <- function(data,learner,target,alpha = 0.05){
   resultLOCO = data.frame(matrix(nrow = 1, ncol = length(feat))) # create empty dataframe to store feature importance score
   resinstanceLOCO = data.frame(matrix(nrow = 5, ncol=length(feat)))
   observed_diff = numeric(length(feat))
-  sd_diff = numeric(length(feat))
+  se_diff = numeric(length(feat))
   
   for(i in 1:length(feat)){
     taskfeat = dropFeatures(task, feat[i])
@@ -30,12 +29,12 @@ LOCO_cv <- function(data,learner,target,alpha = 0.05){
     observed_diff[i] = importance
     
     # Calculate the standard deviation of the differences
-    sd_diff[i] = sd(sapply(1:5, function(k) {
+    se_diff[i] = (sd(sapply(1:5, function(k) {
       mean((resfeat$pred$data[resfeat$pred$data$iter == k, "response"] - 
             resfeat$pred$data[resfeat$pred$data$iter == k, "truth"]))^2 - 
         mean((res$pred$data[res$pred$data$iter == k, "response"] - 
               res$pred$data[res$pred$data$iter == k, "truth"])^2)
-    }))
+    })))/sqrt(5)
     feature = c(getTaskFeatureNames(task))
     resultLOCO[i] = importance
     resinstanceLOCO[,i] = data.frame(resfeat$measures.test[,2]-res$measures.test[,2])# under each fold CV, the difference in mse
@@ -50,7 +49,7 @@ LOCO_cv <- function(data,learner,target,alpha = 0.05){
   rownames(resultLOCO) = "Feature Importance Score"
   lb = data.frame(apply(resinstanceLOCO, 2, quantile, probs = 0.05))
   ub = data.frame(apply(resinstanceLOCO, 2, quantile, probs = 0.95))
-  test_stat = observed_diff / sd_diff
+  test_stat = observed_diff / se_diff
   p_val = 2 * pnorm(-abs(test_stat))
   FIP = data.frame(Feature = feat,
                    Feature_Importance_Score = t(resultLOCO),
@@ -67,10 +66,58 @@ LOCO_cv <- function(data,learner,target,alpha = 0.05){
 
 
 
+LOCO_split <- function(data, learner, target, alpha = 0.05) {
+  task = makeRegrTask(data = data, target = target)
+  # Perform in-sample split
+  rin = makeResampleInstance("Subsample", split = 1/2, iters = 1, task = task)
+  learnerLOCO = makeLearner(learner)
+  feat = getTaskFeatureNames(task)
+  res = resample(learner = learnerLOCO, task = task, resampling = rin, show.info = FALSE)
+  
+  resultLOCO = numeric(length(feat))
+  observed_diff = numeric(length(feat))
+  se_diff = numeric(length(feat))
+  
+  for (i in 1:length(feat)) {
+    taskfeat = dropFeatures(task, features = feat[i])
+    resfeat = resample(learner = learnerLOCO, task = taskfeat, resampling = rin, show.info = FALSE)
+    importance = as.numeric(resfeat$aggr - res$aggr)
+    observed_diff[i] = importance
+    
+    allfeat_error = (res$pred$data$response - res$pred$data$truth)^2
+    feat_error = (resfeat$pred$data$response - resfeat$pred$data$truth)^2
+    error_diff = feat_error - allfeat_error
+    se_diff[i] = sd(error_diff) / sqrt(length(error_diff))
+    
+    resultLOCO[i] = importance
+  }
+  
+  rank_l_s = rank(-resultLOCO)
+  lb = observed_diff - qnorm(1 - alpha / 2) * se_diff
+  ub = observed_diff + qnorm(1 - alpha / 2) * se_diff
+  test_stat = observed_diff / se_diff
+  p_val = 2 * pnorm(-abs(test_stat))
+  
+  FIP = data.frame(
+    Features = feat,
+    Feature_Importance_Score = resultLOCO,
+    Test_Statistics = test_stat,
+    P.Value = p_val,
+    Rank = rank_l_s,
+    LB = lb,
+    UB = ub
+  )
+  
+  return(FIP)
+}
+
+
+
 LOCO_all <- function(data, learner, target, alpha = 0.05) {
   task = makeRegrTask(data = data, target = target)
   learnerLOCO = makeLearner(learner)
   feat = getTaskFeatureNames(task)
+  size = nrow(data)
   
   # Train and predict using the entire dataset using mse
   model = train(learnerLOCO, task)
@@ -79,7 +126,7 @@ LOCO_all <- function(data, learner, target, alpha = 0.05) {
   
   resultLOCO = numeric(length(feat))
   observed_diff = numeric(length(feat))
-  sd_diff = numeric(length(feat))
+  se_diff = numeric(length(feat))
   
   for (i in 1:length(feat)) {
     taskfeat = dropFeatures(task, feat[i])
@@ -89,16 +136,16 @@ LOCO_all <- function(data, learner, target, alpha = 0.05) {
     
     importance = feat_error - allfeat_error
     observed_diff[i] = importance
-    sd_diff[i] =sd((pred_feat$data$response - pred_feat$data$truth)^2 - 
-                       (pred$data$response - pred$data$truth)^2)
+    se_diff[i] =(sd((pred_feat$data$response - pred_feat$data$truth)^2 - 
+                       (pred$data$response - pred$data$truth)^2))/(sqrt(size))
     
     resultLOCO[i] = importance
   }
   
   rank_l_s = rank(-resultLOCO) # the largest score is rank 1, rank from the largest to smallest
-  lb = observed_diff - qnorm(1 - alpha / 2) * sd_diff
-  ub = observed_diff + qnorm(1 - alpha / 2) * sd_diff
-  test_stat = observed_diff / sd_diff
+  lb = observed_diff - qnorm(1 - alpha / 2) * se_diff
+  ub = observed_diff + qnorm(1 - alpha / 2) * se_diff
+  test_stat = observed_diff / se_diff
   p_val = 2 * pnorm(-abs(test_stat))
   
   FIP = data.frame(Feature = feat,
@@ -110,7 +157,7 @@ LOCO_all <- function(data, learner, target, alpha = 0.05) {
                    UB = ub)
   
   colnames(FIP) = c("Features", "Feature_Importance_Score", "Test_Statistics",
-                    "P.Value", "Rank", "LB", "UB")
+                "P.Value", "Rank", "LB", "UB")
   
   return(FIP)
 }

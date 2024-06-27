@@ -402,18 +402,14 @@ run_simulation_a <- function(num_simulations) {
     colnames(data_indep) <- paste("X", 1:20, sep = "")
     
     # Define response y
-   #y1 <- 1.5*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
-          #2 * data_indep$X5 + 3 * data_indep$X6 + 
-          #4 * data_indep$X7 + 5 * data_indep$X8 + 
-          #rnorm(n = 500, mean = 0, sd = 0.1)
-    y1 <- data_indep$X1 + data_indep$X2 + data_indep$X3 + data_indep$X4+
-          1.5* data_indep$X5 + 3 * data_indep$X6 + 
-          5 * data_indep$X7 + 10 * data_indep$X8 + 
+   y1 <- 1.5*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
           rnorm(n = 500, mean = 0, sd = 0.1)
     data_indep["y"] <- y1
     
     # Run LOCO
-    LOCO_results <- LOCO_all(data_indep, "regr.randomForest", "y")
+    LOCO_results <- LOCO_split(data_indep, "regr.randomForest", "y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -423,21 +419,30 @@ run_simulation_a <- function(num_simulations) {
 }
 
 start <- proc.time()
-results_all11 <- run_simulation_a(10)
+results_sp1 <- run_simulation_a(10)
 print( proc.time() - start )
 
 
 
-write.csv(results_all11, "simulation_locoall1.csv", row.names = FALSE)
+#write.csv(results_cv, "simulation_lococv1.csv", row.names = FALSE)
+#all
+#     user  system elapsed 
+# 332.95    7.59  347.14 
 
+#sp
+ # user  system elapsed 
+ #103.19    2.25  105.84 
+
+#cv
 #   user  system elapsed 
-# 735.38   15.77  751.61
-
+#1362.25   31.38 1422.00 
 ```
 
+
+
 ```{r}
-results_all1$Features <- factor(results_all1$Features, levels = paste0("X", 1:20))
- pl1 <- ggplot(results_all1, aes(x = Features, y = P.Value)) +
+results_all$Features <- factor(results_all$Features, levels = paste0("X", 1:20))
+ pl1 <- ggplot(results_all, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
   geom_line(aes(group = 1), color = 'blue')  +
   geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
@@ -445,6 +450,56 @@ results_all1$Features <- factor(results_all1$Features, levels = paste0("X", 1:20
        x = 'Features',
        y = 'Averagd P.value') +
   theme_minimal() 
+ pl1
+ 
+ results_sp$Features <- factor(results_sp$Features, levels = paste0("X", 1:20))
+ pl <- ggplot(results_sp, aes(x = Features, y = P.Value)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue')  +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averagd P.value') +
+  theme_minimal() 
+ pl
+ 
+  results_cv$Features <- factor(results_cv$Features, levels = paste0("X", 1:20))
+ pl <- ggplot(results_cv, aes(x = Features, y = P.Value)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue')  +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averagd P.value') +
+  theme_minimal() 
+ pl
+ 
+ results_cv$Features <- factor(results2$Features, levels = paste0("X", 1:20))
+results2$Correlation <- as.factor(results2$Correlation)
+pl22 <- ggplot(results2, aes(x = Features, y = P.Value,color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1") + 
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+pl22
+```
+
+
+```{r}
+results_all11$Features <- factor(results_all11$Features, levels = paste0("X", 1:20))
+ pl1 <- ggplot(results_all11, aes(x = Features, y = P.Value)) +
+  geom_point(color = 'blue', size = 3) +
+  geom_line(aes(group = 1), color = 'blue')  +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averagd P.value') +
+  theme_minimal() 
+ pl1
 results_all11$Features <- factor(results_all11$Features, levels = paste0("X", 1:20))
  pl11 <- ggplot(results_all11, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
@@ -529,8 +584,17 @@ for (rho in correlations) {
 }
 print( proc.time() - start )
 write.csv(results2, "simulation_lococv2.csv", row.names = FALSE)
-#          user  system elapsed 
-# 5808.50  122.69 5996.14  
+#all
+#    user  system elapsed 
+#1547.34   38.80 1672.35  
+
+#sp
+# user  system elapsed 
+# 634.27   12.71  684.79
+
+#cv
+# user  system elapsed 
+#5343.98  111.11 5530.02 
 ```
 
 
@@ -557,7 +621,7 @@ run_simulation_c <- function(snr, num_simulations) {
     data_indep["y"] <- y1
     
     # Run LOCO
-    LOCO_results <- LOCO_all(data_indep, "regr.randomForest", "y")
+    LOCO_results <- LOCO_split(data_indep, "regr.randomForest", "y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -581,9 +645,13 @@ for (sigma in snrs) {
   results3 <- rbind(results3, results_c)
 }
 print( proc.time() - start )
-write.csv(results3, "simulation_locoall3.csv", row.names = FALSE)
-#       user  system elapsed 
-# 5078.91  110.02 5221.17 
+write.csv(results3, "simulation_locosp3.csv", row.names = FALSE)
+#all
+#          user  system elapsed 
+#1370.46   27.13 1414.51 
+#sp
+#   user  system elapsed 
+# 568.82    7.84  600.96 
 ```
 
 
@@ -609,7 +677,7 @@ run_simulation_d <- function(num_simulations) {
     data_indep["y"] <- y1
     
     # Run LOCO
-    LOCO_results <- LOCO_all(data_indep, "regr.randomForest", "y")
+    LOCO_results <- LOCO_split(data_indep, "regr.randomForest", "y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -623,9 +691,14 @@ results_d <- run_simulation_d(10)
 print( proc.time() - start )
 
 
-write.csv(results_d, "simulation_locoall4.csv", row.names = FALSE)
-#   user  system elapsed 
-#1382.86   25.92 1437.05
+write.csv(results_d, "simulation_locosp4.csv", row.names = FALSE)
+#all
+#    user  system elapsed 
+# 424.00    8.87  457.29 
+
+#sp
+#  user  system elapsed 
+# 168.36    2.69  180.89 
 ```
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%GCM Filter Only%%%%%%%%%%%%%%%%%%%%%%%%%
 ```{r}
@@ -857,7 +930,7 @@ run_simulation_a <- function(num_simulations) {
     data_indep["y"] <- y1
     
     filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
-    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    LOCO_results <-LOCO_all(filter_results, "regr.randomForest","y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -872,7 +945,7 @@ print( proc.time() - start )
 
 write.csv(results_a, "simulation_alg1.csv", row.names = FALSE)
 #    user  system elapsed 
-#1159.51   29.23 1209.42 
+# 959.14   18.50  991.19
 ```
 
 ```{r}
@@ -900,7 +973,7 @@ run_simulation_b <- function(cor, num_simulations) {
     data_indep["y"] <- y1
     
     filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
-    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    LOCO_results <-LOCO_all(filter_results, "regr.randomForest","y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -926,8 +999,8 @@ for (rho in correlations) {
 
 print( proc.time() - start )
 #write.csv(results2, "simulation_alg2.csv", row.names = FALSE)
-#   user  system elapsed 
-# 5815.61  147.71 6110.84 
+#    user  system elapsed 
+#3809.53   71.77 3930.51 
 ```
 
 
@@ -953,7 +1026,7 @@ run_simulation_c <- function(snr, num_simulations) {
     data_indep["y"] <- y1
     
     filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
-    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    LOCO_results <-LOCO_all(filter_results, "regr.randomForest","y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -977,7 +1050,7 @@ for (sigma in snrs) {
   results3 <- rbind(results3, results_c)
 }
 print( proc.time() - start )
-write.csv(results3, "simulation_alg3.csv", row.names = FALSE)
+#write.csv(results3, "simulation_alg3.csv", row.names = FALSE)
 #   user  system elapsed 
 #5704.52  155.75 5957.70  
 ```
@@ -1005,7 +1078,7 @@ run_simulation_d <- function(num_simulations) {
     
     filter_results <- GCM_filter(data_indep, "regr.randomForest","y")[[2]]
     filter_results["y"] <- y1
-    LOCO_results <-LOCO(filter_results, "regr.randomForest","y")
+    LOCO_results <-LOCO_all(filter_results, "regr.randomForest","y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -1021,5 +1094,5 @@ print( proc.time() - start )
 
 #write.csv(results_d, "simulation_alg4.csv", row.names = FALSE)
 #     user  system elapsed 
-#1530.30   32.86 1588.26 
+# 855.09   14.81  877.42 
 ```
