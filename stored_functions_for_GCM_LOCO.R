@@ -172,7 +172,7 @@ GCM_filter <- function(data,learner,target, alpha = 0.05){
   task_Y = makeRegrTask(data = data , target = target)# this is for regression not classifiction
   learner_filter = makeLearner(learner)
   feat = getTaskFeatureNames(task_Y)
-  resultGCM = data.frame(test.statistics = numeric(0), p.val = numeric(0), rejection = logical(0)) # create empty dataframe to store feature importance score
+  resultGCM = data.frame(test.statistics = numeric(0), p.val = numeric(0), rejection = logical(0), R=numeric(0)) # create empty dataframe to store feature importance score
   
   for(i in 1:length(feat)){
     taskfeat_Y = dropFeatures(task_Y, feat[i])
@@ -189,7 +189,7 @@ GCM_filter <- function(data,learner,target, alpha = 0.05){
     meanR <- mean(R)
     test.stat <- sqrt(nn) * meanR / sqrt(mean(R.sq) - meanR^2)
     p.value <- as.numeric(2 * pnorm(abs(test.stat), lower.tail = FALSE))
-    new_row <- data.frame(Features = feat[i],test.statistics = test.stat, p.val = p.value, rejection = p.value < alpha)
+    new_row <- data.frame(Features = feat[i],test.statistics = test.stat, p.val = p.value, rejection = p.value < alpha, R=meanR)
     resultGCM <- rbind(resultGCM, new_row)
   }
   rownames(resultGCM) = c(feat)

@@ -162,6 +162,7 @@ library(mlr)
 library(iml)
 library(ggplot2)
 library(randomForest)
+library(kernlab) #ksvm
 library(kknn)
 source("stored_functions_for_GCM_LOCO.R")
 ```
@@ -423,8 +424,7 @@ results_sp1 <- run_simulation_a(10)
 print( proc.time() - start )
 
 
-
-#write.csv(results_cv, "simulation_lococv1.csv", row.names = FALSE)
+#write.csv(result_alla, "result_alla.csv", row.names = FALSE)
 #all
 #     user  system elapsed 
 # 332.95    7.59  347.14 
@@ -662,22 +662,30 @@ run_simulation_d <- function(num_simulations) {
   results_list <- list()
   
   for (i in 1:num_simulations) {
-    set.seed(123 + i)  
-    
+    set.seed(123 + i)
+    library(mgcv)
+    set.seed(123)
     sigma_indep <- diag(1, nrow = 20)
     data_indep <- as.data.frame(mvrnorm(n = 500, 
                                         mu = rep(0, times = 20), 
                                         Sigma = sigma_indep))
     colnames(data_indep) <- paste("X", 1:20, sep = "")
-    
+
     # Define response y
-    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ 3*data_indep$X5 * data_indep$X6 + 
-          5 * data_indep$X7 + pmax(data_indep$X8)  + 
+    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ + 3*data_indep$X5 + (data_indep$X6)^3+ 
+          5 * data_indep$X7 + 
           rnorm(n = 500, mean = 0, sd = 0.1)
     data_indep["y"] <- y1
     
+        #transform dataset
+    data_indep$X1 <- (data_indep$X1)^2
+    data_indep$X2 <- cos(4*data_indep$X2)
+    data_indep$X3 <- sin(data_indep$X3)
+    data_indep$X4 <- exp(data_indep$X4/3)
+    data_indep$X6 <- (data_indep$X6)^3
+    
     # Run LOCO
-    LOCO_results <- LOCO_split(data_indep, "regr.randomForest", "y")
+    LOCOgg_results <- GCM_filter(data_indep, "regr.randomForest", "y")
     
     # Store the results in the list
     results_list[[i]] <- LOCO_results
@@ -689,7 +697,7 @@ run_simulation_d <- function(num_simulations) {
 start <- proc.time()
 results_d <- run_simulation_d(10)
 print( proc.time() - start )
-
+pmax(data_indep$X8)  + 
 
 write.csv(results_d, "simulation_locosp4.csv", row.names = FALSE)
 #all
@@ -737,7 +745,7 @@ results_a <- run_simulation_a(10, Alpha = 0.05)
 print( proc.time() - start )
 
 
-write.csv(results_a, "simulation_gcm_filter1.csv", row.names = FALSE)
+#write.csv(results_a, "simulation_gcm_filter1.csv", row.names = FALSE)
 
 #    user  system elapsed 
 # 841.43   15.22  864.69 
@@ -1096,3 +1104,213 @@ print( proc.time() - start )
 #     user  system elapsed 
 # 855.09   14.81  877.42 
 ```
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Comparison bt LOCO GCM%%%%%%%%%%%%%%%%%%%%%%
+```{r}
+# case a)
+run_simulation_a <- function(num_simulations,beta1) {
+  results_listloco <- list()
+  res_listgcm <-list()
+  df_diff <- list()
+  for (i in 1:num_simulations) {
+    set.seed(123+i)  
+
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+   y1 <- beta1*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO_all(data_indep, "regr.lm", "y")
+    GCM_results <- GCM_filter(data_indep, "regr.lm", "y")
+    # Store the results in the list
+    results_listloco[[i]] <- LOCO_results
+    res_listgcm[[i]] <- GCM_results[[1]]
+    df_diff[[i]]<- data.frame(Features = paste("X", 1:20, sep = ""), diff=GCM_results[[1]]$test.statistics-LOCO_results$Test_Statistics)
+  }
+   return(list(aggregate_results(results_listloco), aggregate_results(res_listgcm),aggregate_results(df_diff) ))
+}
+
+
+results1 <- data.frame()
+
+for (b1 in 0:9) {
+  results_a <- run_simulation_a(beta1 = b1, num_simulations=10)
+  
+  results_a[[3]]$beta1 <- b1
+  
+  results1 <- rbind(results1, results_a[[3]])
+}
+
+
+write.csv(results1, "result_diff1.csv", row.names = FALSE)
+```
+
+```{r}
+# case b)
+
+run_simulation_b <- function(cor, num_simulations) {
+  results_listloco <- list()
+  res_listgcm <-list()
+  df_diff <- list()
+  for (i in 1:num_simulations) {
+    set.seed(123+i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    sigma_indep[1, 2] <- cor
+    sigma_indep[2, 1] <- cor
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <-  1.5*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 +2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO_all(data_indep, "regr.lm", "y")
+    GCM_results <- GCM_filter(data_indep, "regr.lm", "y")
+    # Store the results in the list
+    results_listloco[[i]] <- LOCO_results
+    res_listgcm[[i]] <- GCM_results[[1]]
+    df_diff[[i]]<- data.frame(Features = paste("X", 1:20, sep = ""), diff=GCM_results[[1]]$test.statistics-LOCO_results$Test_Statistics)
+
+  }
+    return(list(aggregate_results(results_listloco), aggregate_results(res_listgcm),aggregate_results(df_diff) ))
+}
+
+
+
+start <- proc.time()
+results2 <- data.frame()
+
+correlations <- c(0, 0.5, 0.75, 0.9)
+
+
+for (rho in correlations) {
+  results_b <- run_simulation_b(cor = rho, num_simulations=10)
+  
+  results_b[[3]]$Correlation <- rho
+  
+  results2 <- rbind(results2, results_b[[3]])
+}
+print( proc.time() - start )
+write.csv(results2, "simulation_diff2.csv", row.names = FALSE)
+
+```
+
+```{r}
+# case c)
+run_simulation_c <- function(snr, num_simulations) {
+  results_listloco <- list()
+  res_listgcm <-list()
+  df_diff <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- cplx_cov_matrix(n=20, rho=0.7)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <-  3*data_indep$X1 + 3*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = snr)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    LOCO_results <- LOCO_all(data_indep, "regr.lm", "y")
+    GCM_results <- GCM_filter(data_indep, "regr.lm", "y")
+    # Store the results in the list
+    results_listloco[[i]] <- LOCO_results
+    res_listgcm[[i]] <- GCM_results[[1]]
+    df_diff[[i]]<- data.frame(Features = paste("X", 1:20, sep = ""), diff=GCM_results[[1]]$test.statistics-LOCO_results$Test_Statistics)
+
+  }
+  return(list(aggregate_results(results_listloco), aggregate_results(res_listgcm),aggregate_results(df_diff) ))
+}
+
+
+
+start <- proc.time()
+results3 <- data.frame()
+
+snrs <- c(0.1, 0.5, 1, 2.1)
+
+
+for (sigma in snrs) {
+  results_c <- run_simulation_c(snr = sigma, num_simulations=10)
+  
+  results_c[[1]]$snr <- sigma
+  
+  results3 <- rbind(results3, results_c[[1]])
+}
+print( proc.time() - start )
+#write.csv(results3, "simulation_diff3.csv", row.names = FALSE)
+```
+```{r}
+#case d) non-linear
+
+run_simulation_d <- function(num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)
+    library(mgcv)
+    set.seed(123)
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+
+    # Define response y
+    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ + 3*data_indep$X5 + (data_indep$X6)^3+ 
+          5 * data_indep$X7 + pmax(data_indep$X8)  +
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+        #transform dataset
+    data_indep$X1 <- (data_indep$X1)^2
+    data_indep$X2 <- cos(4*data_indep$X2)
+    data_indep$X3 <- sin(data_indep$X3)
+    data_indep$X4 <- exp(data_indep$X4/3)
+    data_indep$X6 <- (data_indep$X6)^3
+    data_indep$X8 <- pmax(data_indep$X8)
+    
+    # Run LOCO
+    LOCO_results <- LOCO_all(data_indep, "regr.ksvm", "y")
+    LOCOgg_results <- GCM_filter(data_indep, "regr.ksvm", "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  
+  return(aggregate_results(results_list))
+}
+
+start <- proc.time()
+results_d <- run_simulation_d(10)
+print( proc.time() - start )
+pmax(data_indep$X8)  + 
+
+```
+
+

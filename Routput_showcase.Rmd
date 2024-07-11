@@ -19,19 +19,23 @@ library(cowplot)
 ```
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-locoall1 <- read.csv("r_output/simulation_locoall1.csv")
-lococv1 <- read.csv("r_output/simulation_lococv1.csv")
-locosp1 <- read.csv("r_output/simulation_locosp1.csv")
-lococv2 <- read.csv("r_output/simulation_lococv2.csv")
-locoall2 <- read.csv("r_output/simulation_locoall2.csv")
-locosp2 <- read.csv("r_output/simulation_locosp2.csv")
+locoall1 <- read.csv("r_output/simulation_loco1.csv")
+#lococv1 <- read.csv("r_output/simulation_lococv1.csv")
+#locosp1 <- read.csv("r_output/simulation_locosp1.csv")
+#lococv2 <- read.csv("r_output/simulation_lococv2.csv")
+locoall2 <- read.csv("r_output/simulation_loco2.csv")
+#locosp2 <- read.csv("r_output/simulation_locosp2.csv")
 
-locosp3 <- read.csv("r_output/simulation_locosp3.csv")
-locoall3 <- read.csv("r_output/simulation_locoall3.csv")
-locosp4 <- read.csv("r_output/simulation_locosp4.csv")
-locoall4 <- read.csv("r_output/simulation_locoall4.csv")
-
-
+#locosp3 <- read.csv("r_output/simulation_locosp3.csv")
+locoall3 <- read.csv("r_output/simulation_loco3.csv")
+#locosp4 <- read.csv("r_output/simulation_locosp4.csv")
+#locoall4 <- read.csv("r_output/simulation_locoall4.csv")
+gcm1 <-read.csv("r_output/simulation_gcm1.csv")
+gcm2 <-read.csv("r_output/simulation_gcm2.csv")
+gcm3 <- read.csv("r_output/simulation_gcm3.csv")
+diff1 <-read.csv("r_output/simulation_diff1.csv")
+diff2 <-read.csv("r_output/simulation_diff2.csv")
+diff3 <-read.csv("r_output/simulation_diff3.csv")
 ```
 
 ### (a) Linear Model with Independent Predictors
@@ -55,8 +59,127 @@ Where \(\text{cov}(X_i, X_j) = \rho^{|i-j|}\) and \(\epsilon \sim N(0, \sigma^2)
 \[ Y_4 \sim 2X_1^2 + 2\cos(4X_2) + \sin(X_3) + \exp\left(\frac{X_4}{3}\right) + 3X_5 X_6 + 5 X_7 + \max(0, X_8) \]
 
 
+```{r,echo=FALSE,warning=FALSE}
+locoall1$Features <- factor(locoall1$Features, levels = paste0("X", 1:20))
+locoall1$beta1 <- as.factor(locoall1$beta1)
+plall11 <-ggplot(locoall1, aes(x = Features, y = P.Value, color = beta1)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = beta1), size = 1) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")+ 
+  scale_color_brewer(palette = "Set1")   +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+
+
+locoall2$Features <- factor(locoall2$Features, levels = paste0("X", 1:20))
+locoall2$Correlation <- as.factor(locoall2$Correlation)
+plall21 <- ggplot(locoall2, aes(x = Features, y = P.Value, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+locoall3$Features <- factor(locoall3$Features, levels = paste0("X", 1:20))
+locoall3$snr <- as.factor(locoall3$snr)
+plall31 <- ggplot(locoall3, aes(x = Features, y = P.Value, color = snr)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+gcm1$Features <- factor(gcm1$Features, levels = paste0("X", 1:20))
+gcm1$beta1 <- as.factor(gcm1$beta1)
+ plall12 <-ggplot(gcm1, aes(x = Features, y = p.val, color = beta1)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = beta1), size = 1) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")+ 
+  scale_color_brewer(palette = "Set1")   +
+  labs(title = 'Case a): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+
+gcm2$Features <- factor(gcm2$Features, levels = paste0("X", 1:20))
+gcm2$Correlation <- as.factor(gcm2$Correlation)
+plall22 <- ggplot(gcm2, aes(x = Features, y = p.val, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+
+
+gcm3$Features <- factor(gcm3$Features, levels = paste0("X", 1:20))
+gcm3$snr <- as.factor(gcm3$snr)
+plall32 <- ggplot(gcm3, aes(x = Features, y = p.val, color = snr)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()
+plall11
+plall21
+plall31
+plall12
+plall22
+plall32
+
+selected_loco1 <- subset(locoall1, Features == "X1", select = c(beta1,Test_Statistics,P.Value))
+selected_gcm1 <- subset(gcm1, Features == "X1", select = c(beta1,test.statistics,p.val))
+library(dplyr)
+result <- left_join(selected_loco1, selected_gcm1, by = "beta1")
+result$P.Value<- format(result$P.Value, scientific = TRUE)
+result$p.val<- format(result$p.val, scientific = TRUE)
+knitr::kable(result, align = "lccrr")
+
+
+diff2$Features <- factor(diff2$Features, levels = paste0("X", 1:20))
+diff2$Correlation <- as.factor(diff2$Correlation)
+ ggplot(diff2, aes(x = Features, y = diff, color = Correlation)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1")   +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Difference in Test Statistics') +
+  theme_minimal()
+
+
+diff3$Features <- factor(diff3$Features, levels = paste0("X", 1:20))
+diff3$snr <- as.factor(diff3$snr)
+ggplot(diff3, aes(x = Features, y = diff, color = snr)) +
+  geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Difference in Test Statistics') +
+  theme_minimal()
+```
+
+
+
+\pagebreak
 ## LOCO only
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 locoall1$Features <- factor(locoall1$Features, levels = paste0("X", 1:20))
 plall11 <- ggplot(locoall1, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
@@ -118,9 +241,6 @@ plsp12 <- ggplot(locosp1, aes(x = Features, y = Feature_Importance_Score)) +
 ```
 
 
-
-
-
 ```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
 pl1 <- ggplot(loco1, aes(x = Features, y = Feature_Importance_Score)) +
@@ -148,7 +268,7 @@ loco1$Features <- factor(loco1$Features, levels = paste0("X", 1:20))
 
 
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 locoall2$Features <- factor(locoall2$Features, levels = paste0("X", 1:20))
 locoall2$Correlation <- as.factor(locoall2$Correlation)
 plall21 <- ggplot(locoall2, aes(x = Features, y = P.Value, color = Correlation)) +
@@ -240,12 +360,12 @@ loco2$Correlation <- as.factor(loco2$Correlation)
 ```
 
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 #plot_grid(pl1, pl2, labels = "AUTO")
 ```
 
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
 locoall3$Features <- factor(locoall3$Features, levels = paste0("X", 1:20))
 locoall3$snr <- as.factor(locoall3$snr)
 plall31 <- ggplot(locoall3, aes(x = Features, y = P.Value, color = snr)) +
@@ -309,7 +429,7 @@ pl33 <- ggplot(loco3, aes(x = Features, y = P.Value, color = snr)) +
 
 
 
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE, eval=FALSE}
 locoall4$Features <- factor(locoall4$Features, levels = paste0("X", 1:20))
 plall41 <- ggplot(locoall4, aes(x = Features, y = P.Value)) +
   geom_point(color = 'blue', size = 3) +
@@ -380,7 +500,7 @@ pl44 <- ggplot(loco4, aes(x = Features, y = P.Value)) +
 ```
 
 ## GCM filter only
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 gcm1 <- read.csv("r_output/simulation_gcm_filter1.csv")
 gcm2 <- read.csv("r_output/simulation_gcm_filter2.csv")
 gcm3 <- read.csv("r_output/simulation_gcm_filter3.csv")
@@ -388,7 +508,7 @@ gcm4 <- read.csv("r_output/simulation_gcm_filter4.csv")
 
 ```
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 gcm1$Features <- factor(gcm1$Features, levels = paste0("X", 1:20))
 pla <- ggplot(gcm1, aes(x = Features, y = p.val)) +
   geom_point(color = 'blue', size = 1) +
@@ -403,7 +523,7 @@ pla
 
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE,eval=FALSE}
 gcm2$Features <- factor(gcm2$Features, levels = paste0("X", 1:20))
 gcm2$Correlation <- as.factor(gcm2$Correlation)
 plb <- ggplot(gcm2, aes(x = Features, y = p.val, color = Correlation)) +
@@ -447,7 +567,7 @@ pld
 ```
 \pagebreak
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,eval=FALSE}
 cut_gcm1 <- gcm1 %>% filter(p.val<0.01)%>%arrange(p.val) %>% mutate(rank=rank(p.val))
 
 a<- ggplot(cut_gcm1, aes(x = Features, y = rank)) +
