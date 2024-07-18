@@ -200,6 +200,51 @@ GCM_filter <- function(data,learner,target, alpha = 0.05){
 # > task[["type"]]
 #[1] "regr"
 
+
+GCM_filter_tr <- function(data, learner, target, alpha = 0.05, transformations = NULL){
+  nn <- nrow(data)
+  data_X <- data %>% dplyr::select(-target)
+  task_Y <- makeRegrTask(data = data, target = target) # this is for regression, not classification
+  learner_filter <- makeLearner(learner)
+  feat <- getTaskFeatureNames(task_Y)
+  resultGCM <- data.frame(test.statistics = numeric(0), p.val = numeric(0), rejection = logical(0), R = numeric(0)) # create empty dataframe to store feature importance score
+  
+  for(i in 1:length(feat)){
+    taskfeat_Y <- dropFeatures(task_Y, feat[i])
+    model_Y <- train(learner_filter, taskfeat_Y) # By default subsets = NULL if all observations are used
+    pred_Y <- predict(model_Y, task = taskfeat_Y)
+    res_Y <- getPredictionTruth(pred_Y) - getPredictionResponse(pred_Y)
+    
+    # Apply the transformation function for feature i only if it exists
+    data_X_transformed <- data_X
+    if(!is.null(transformations) && feat[i] %in% names(transformations)) {
+      transformation_function <- transformations[[feat[i]]]
+      data_X_transformed[[feat[i]]] <- transformation_function(data_X[[feat[i]]])
+    }
+    
+    taskfeat_Xj <- makeRegrTask(data = data_X_transformed, target = feat[i]) # this is for regression, not classification
+    model_Xj <- train(learner_filter, taskfeat_Xj) # By default subsets = NULL if all observations are used
+    pred_Xj <- predict(model_Xj, task = taskfeat_Xj)
+    res_Xj <- getPredictionTruth(pred_Xj) - getPredictionResponse(pred_Xj)
+    
+    # GCM Test Statistics Computing:
+    R <- res_Xj * res_Y
+    R.sq <- R^2
+    meanR <- mean(R)
+    test.stat <- sqrt(nn) * meanR / sqrt(mean(R.sq) - meanR^2)
+    p.value <- as.numeric(2 * pnorm(abs(test.stat), lower.tail = FALSE))
+    new_row <- data.frame(Features = feat[i], test.statistics = test.stat, p.val = p.value, rejection = p.value < alpha, R = meanR)
+    resultGCM <- rbind(resultGCM, new_row)
+  }
+  rownames(resultGCM) <- c(feat)
+  selected_data <- data[, resultGCM$rejection]
+  return(list(resultGCM = resultGCM, selected_data = selected_data))
+}
+
+
+
+
+
 cplx_cov_matrix <- function(n, rho) {
   cov_matrix <- matrix(0, n, n)
   
