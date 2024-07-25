@@ -1,0 +1,517 @@
+---
+title: "Real Data Analysis"
+author: "Chenghui Zheng"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(MASS)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(mlr)
+library(iml)
+library(randomForest)
+library(kernlab) #ksvm
+library(kknn)
+library(nnet)
+source("C:/Users/pearl/OneDrive/Documents/Research/spring 2024 project/stored_functions_for_GCM_LOCO.R")
+
+```
+
+# Wine Quality
+```{r,echo=FALSE,warning=FALSE}
+wine <- read.csv("winequality_red.csv", header = TRUE,sep = ";")
+set.seed(123) 
+trainIndex <- createDataPartition(wine$quality, p = 0.8, list = FALSE, times = 1)
+wine_train <- wine[trainIndex, ]
+wine_test <- wine[-trainIndex, ]
+
+LOCO_wine <- LOCO_all(wine_train, "regr.randomForest", "quality")
+
+GCM_wine <- GCM_filter(wine_train, "regr.randomForest", "quality")[[1]]
+```
+
+
+```{r,echo=FALSE,warning=FALSE}
+#holm-bonferroni 
+GCM_wine$p.val.adj <- p.adjust(GCM_wine$p.val, method = "holm")
+merged_rf <- merge(GCM_wine, LOCO_wine, by = "Features")
+
+merged_rf <- merged_rf %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+
+ggplot(merged_rf, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Wine Quality(RF):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+#write.csv(merged_rf, "wine_rf.csv", row.names = FALSE)
+
+selected_features <- LOCO_wine$Features[LOCO_wine$P.Value < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = wine_train, ntree = 500)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_loco_rf <- mean((predictions - wine_test$quality)^2)
+
+selected_features <- GCM_wine$Features[GCM_wine$p.val < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = wine_train, ntree = 500)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_gcm_rf <- mean((predictions - wine_test$quality)^2)
+
+selected_features <- GCM_wine$Features[GCM_wine$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = wine_train, ntree = 500)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_gcm_adj_rf <- mean((predictions - wine_test$quality)^2)
+```
+
+
+
+```{r,echo=FALSE}
+loco_wine_lm <- LOCO_all(wine_train, "regr.lm", "quality")
+GCM_wine_lm <- GCM_filter(wine_train, "regr.lm", "quality")[[1]]
+#holm-bonferroni 
+GCM_wine_lm$p.val.adj <- p.adjust(GCM_wine_lm$p.val, method = "holm")
+merged_lm <- merge(GCM_wine_lm, loco_wine_lm, by = "Features")
+
+merged_lm <- merged_lm %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+#write.csv(merged_lm, "wine_lm.csv", row.names = FALSE)
+ggplot(merged_lm, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Wine Quality(lm):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+
+selected_features <- loco_wine_lm$Features[loco_wine_lm$P.Value < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = wine_train)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_loco_lm <- mean((predictions - wine_test$quality)^2)
+
+
+selected_features <- GCM_wine_lm$Features[GCM_wine_lm$p.val < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = wine_train)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_gcm_lm <- mean((predictions - wine_test$quality)^2)
+
+selected_features <- GCM_wine_lm$Features[GCM_wine_lm$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = wine_train)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_gcm_adj_lm <- mean((predictions - wine_test$quality)^2)
+```
+
+```{r,echo=FALSE}
+loco_wine_svm <- LOCO_all(wine_train, "regr.ksvm", "quality")
+GCM_wine_svm <- GCM_filter(wine_train, "regr.ksvm", "quality")[[1]]
+#holm-bonferroni 
+GCM_wine_svm$p.val.adj <- p.adjust(GCM_wine_svm$p.val, method = "holm")
+merged_lm <- merge(GCM_wine_svm, loco_wine_svm, by = "Features")
+
+merged_lm <- merged_lm %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM_Holm"))
+#write.csv(merged_lm, "wine_lm.csv", row.names = FALSE)
+ggplot(merged_lm, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Wine Quality(ksvm):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+
+selected_features <- loco_wine_svm$Features[loco_wine_svm$P.Value < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = wine_train)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_loco_svm <- mean((predictions - wine_test$quality)^2)
+
+selected_features <- GCM_wine_svm$Features[GCM_wine_svm$p.val < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = wine_train)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_gcm_svm <- mean((predictions - wine_test$quality)^2)
+
+selected_features <- GCM_wine_svm$Features[GCM_wine_svm$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("quality ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = wine_train)
+predictions <- predict(selected_model, newdata = wine_test)
+mse_gcm_adj_svm <- mean((predictions - wine_test$quality)^2)
+```
+
+
+```{r,echo=FALSE}
+data_matrix <- matrix(c(mse_loco_rf, mse_gcm_rf,mse_gcm_adj_rf,mse_loco_svm, mse_gcm_svm, mse_gcm_adj_svm,mse_loco_lm, mse_gcm_lm,mse_gcm_adj_lm), nrow = 3, ncol = 3)
+rownames(data_matrix) <- c("LOCO", "GCM","GCM-Holm")
+colnames(data_matrix) <- c("RF","ksvm", "lm")
+print(as.table(data_matrix))
+```
+
+
+
+# Concrete Compressive Strength
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+library(readxl)
+concrete <- read_excel("Concrete_Data.xls")
+concrete <- as.data.frame(concrete)
+colnames(concrete) <- c("cement", "blast.furnace.slag","fly.ash","water","superplasticizer","coarse.aggregate","fine.aggregate","age","concrete.compressive.strength")
+set.seed(123) 
+trainIndex <- createDataPartition(concrete$concrete.compressive.strength, p = 0.8, list = FALSE)
+con_train <- concrete[trainIndex, ]
+con_test <- concrete[-trainIndex, ]
+LOCO_con <- LOCO_all(con_train, "regr.randomForest", "concrete.compressive.strength")
+
+GCM_con <- GCM_filter(con_train, "regr.randomForest", "concrete.compressive.strength")[[1]]
+#holm-bonferroni 
+GCM_con$p.val.adj <- p.adjust(GCM_con$p.val, method = "holm")
+
+merged_rf <- merge(GCM_con, LOCO_con, by = "Features")
+
+merged_rf <- merged_rf %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+
+ggplot(merged_rf, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Concrete Compressive Strength(RF):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+#write.csv(merged_rf, "concrete_rf.csv", row.names = FALSE)
+
+selected_features <- LOCO_con$Features[LOCO_con$P.Value < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = con_train, ntree = 1000)
+predictions <- predict(selected_model, newdata = con_test)
+mse_loco_rf <- mean((predictions - con_test$concrete.compressive.strength)^2)
+
+selected_features <- GCM_con$Features[GCM_con$p.val < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = con_train, ntree = 1000)
+predictions <- predict(selected_model, newdata = con_test)
+mse_gcm_rf <- mean((predictions - con_test$concrete.compressive.strength)^2)
+
+selected_features <- GCM_con$Features[GCM_con$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = con_train, ntree = 1000)
+predictions <- predict(selected_model, newdata = con_test)
+mse_gcm_adj_rf <- mean((predictions - con_test$concrete.compressive.strength)^2)
+```
+
+```{r,echo=FALSE}
+LOCO_con <- LOCO_all(con_train, "regr.ksvm", "concrete.compressive.strength")
+GCM_con <- GCM_filter(con_train, "regr.ksvm", "concrete.compressive.strength")[[1]]
+#holm-bonferroni 
+GCM_con$p.val.adj <- p.adjust(GCM_con$p.val, method = "holm")
+merged_rf <- merge(GCM_con, LOCO_con, by = "Features")
+
+merged_rf <- merged_rf %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+
+ggplot(merged_rf, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Concrete Compressive Strength(ksvm):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+selected_features <- LOCO_con$Features[LOCO_con$P.Value < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = con_train)
+predictions <- predict(selected_model, newdata = con_test)
+mse_loco_svm <- mean((predictions - con_test$concrete.compressive.strength)^2)
+
+selected_features <- GCM_con$Features[GCM_con$p.val < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = con_train)
+predictions <- predict(selected_model, newdata = con_test)
+mse_gcm_svm <- mean((predictions - con_test$concrete.compressive.strength)^2)
+
+selected_features <- GCM_con$Features[GCM_con$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = con_train)
+predictions <- predict(selected_model, newdata = con_test)
+mse_gcm_adj_svm <- mean((predictions - con_test$concrete.compressive.strength)^2)
+```
+
+```{r,echo=FALSE}
+LOCO_con <- LOCO_all(con_train, "regr.lm", "concrete.compressive.strength")
+GCM_con <- GCM_filter(con_train, "regr.lm", "concrete.compressive.strength")[[1]]
+#holm-bonferroni 
+GCM_con$p.val.adj <- p.adjust(GCM_con$p.val, method = "holm")
+merged_rf <- merge(GCM_con, LOCO_con, by = "Features")
+
+merged_rf <- merged_rf %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+
+ggplot(merged_rf, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Concrete Compressive Strength(lm):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+selected_features <- LOCO_con$Features[LOCO_con$P.Value < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = con_train)
+predictions <- predict(selected_model, newdata = con_test)
+mse_loco_lm <- mean((predictions - con_test$concrete.compressive.strength)^2)
+
+selected_features <- GCM_con$Features[GCM_con$p.val < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = con_train)
+predictions <- predict(selected_model, newdata = con_test)
+mse_gcm_lm <- mean((predictions - con_test$concrete.compressive.strength)^2)
+
+selected_features <- GCM_con$Features[GCM_con$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("concrete.compressive.strength ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = con_train)
+predictions <- predict(selected_model, newdata = con_test)
+mse_gcm_adj_lm <- mean((predictions - con_test$concrete.compressive.strength)^2)
+```
+
+
+```{r,echo=FALSE}
+data_matrix <- matrix(c(mse_loco_rf, mse_gcm_rf,mse_gcm_adj_rf,mse_loco_svm, mse_gcm_svm, mse_gcm_adj_svm,mse_loco_lm, mse_gcm_lm,mse_gcm_adj_lm), nrow = 3, ncol = 3)
+rownames(data_matrix) <- c("LOCO", "GCM","GCM-Holm")
+colnames(data_matrix) <- c("RF","ksvm", "lm")
+print(as.table(data_matrix))
+```
+
+# Boston Housing Price
+```{r,echo=FALSE,warning=FALSE}
+data("Boston", package = "MASS")
+set.seed(123) 
+trainIndex <- createDataPartition(Boston$medv, p = 0.8, list = FALSE, times = 1)
+bos_train <- Boston[trainIndex, ]
+bos_test <- Boston[-trainIndex, ]
+
+LOCO_bos <- LOCO_all(bos_train, "regr.randomForest", "medv")
+
+GCM_bos <- GCM_filter(bos_train, "regr.randomForest", "medv")[[1]]
+#holm-bonferroni 
+GCM_bos$p.val.adj <- p.adjust(GCM_bos$p.val, method = "holm")
+merged_rf <- merge(GCM_bos, LOCO_bos, by = "Features")
+
+merged_rf <- merged_rf %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+
+ggplot(merged_rf, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Boston Housing Price(RF):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+#write.csv(merged_rf, "wine_rf.csv", row.names = FALSE)
+
+selected_features <- LOCO_bos$Features[LOCO_bos$P.Value < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = bos_train, ntree = 500)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_loco_rf <- mean((predictions - bos_test$medv)^2)
+
+selected_features <- GCM_bos$Features[GCM_bos$p.val < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = bos_train, ntree = 500)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_gcm_rf <- mean((predictions - bos_test$medv)^2)
+
+selected_features <- GCM_bos$Features[GCM_bos$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- randomForest(selected_formula, data = bos_train, ntree = 500)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_gcm_adj_rf <- mean((predictions - bos_test$medv)^2)
+```
+
+
+```{r,echo=FALSE}
+loco_bos_lm <- LOCO_all(bos_train, "regr.lm", "medv")
+GCM_bos_lm <- GCM_filter(bos_train, "regr.lm", "medv")[[1]]
+#holm-bonferroni 
+GCM_bos_lm$p.val.adj <- p.adjust(GCM_bos_lm$p.val, method = "holm")
+merged_lm <- merge(GCM_bos_lm, loco_bos_lm, by = "Features")
+
+merged_lm <- merged_lm %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+#write.csv(merged_lm, "wine_lm.csv", row.names = FALSE)
+ggplot(merged_lm, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Boston Housing Price(lm):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+
+selected_features <- loco_bos_lm$Features[loco_bos_lm$P.Value < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = bos_train)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_loco_lm <- mean((predictions - bos_test$medv)^2)
+
+selected_features <- GCM_bos_lm$Features[GCM_bos_lm$p.val < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = bos_train)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_gcm_lm <- mean((predictions - bos_test$medv)^2)
+
+selected_features <- GCM_bos_lm$Features[GCM_bos_lm$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- lm(selected_formula, data = bos_train)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_gcm_adj_lm <- mean((predictions - bos_test$medv)^2)
+```
+
+```{r,echo=FALSE}
+loco_bos_svm <- LOCO_all(bos_train, "regr.ksvm", "medv")
+GCM_bos_svm <- GCM_filter(bos_train, "regr.ksvm", "medv")[[1]]
+#holm-bonferroni 
+GCM_bos_svm$p.val.adj <- p.adjust(GCM_bos_svm$p.val, method = "holm")
+merged_lm <- merge(GCM_bos_svm, loco_bos_svm, by = "Features")
+
+merged_lm <- merged_lm %>%
+  pivot_longer(cols = starts_with("p.val"), names_to = "methods", values_to = "p.value")%>%  mutate(methods = recode(methods,
+                         "p.val" = "GCM",
+                         "P.Value" = "LOCO",
+                         "p.val.adj" = "GCM-Holm"))
+#write.csv(merged_lm, "wine_lm.csv", row.names = FALSE)
+ggplot(merged_lm, aes(x = Features, y = p.value, color = methods)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = methods),size=0.5) +
+  scale_color_brewer(palette = "Set1")  +
+  labs(title = "Boston Housing Price(ksvm):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+
+selected_features <- loco_bos_svm$Features[loco_bos_svm$P.Value < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = bos_train)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_loco_svm <- mean((predictions - bos_test$medv)^2)
+
+selected_features <- GCM_bos_svm$Features[GCM_bos_svm$p.val < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = bos_train)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_gcm_svm <- mean((predictions - bos_test$medv)^2)
+
+selected_features <- GCM_bos_svm$Features[GCM_bos_svm$p.val.adj < 0.05]
+selected_formula <- as.formula(paste("medv ~", paste(selected_features, collapse = " + ")))
+
+# Refit the model using the selected features
+selected_model <- ksvm(selected_formula, data = bos_train)
+predictions <- predict(selected_model, newdata = bos_test)
+mse_gcm_adj_svm <- mean((predictions - bos_test$medv)^2)
+```
+
+```{r,echo=FALSE}
+data_matrix <- matrix(c(mse_loco_rf, mse_gcm_rf,mse_gcm_adj_rf,mse_loco_svm, mse_gcm_svm, mse_gcm_adj_svm,mse_loco_lm, mse_gcm_lm,mse_gcm_adj_lm), nrow = 3, ncol = 3)
+rownames(data_matrix) <- c("LOCO", "GCM","GCM-Holm")
+colnames(data_matrix) <- c("RF","ksvm", "lm")
+print(as.table(data_matrix))
+```
