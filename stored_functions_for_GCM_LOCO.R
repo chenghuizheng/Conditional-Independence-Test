@@ -113,9 +113,9 @@ LOCO_split <- function(data, learner, target, alpha = 0.05) {
 
 
 
-LOCO_all <- function(data, learner, target, alpha = 0.05) {
+LOCO_all <- function(data, learner, target, alpha = 0.05,learner_params = list()) {
   task = makeRegrTask(data = data, target = target)
-  learnerLOCO = makeLearner(learner)
+  learnerLOCO = makeLearner(learner, par.vals = learner_params)
   feat = getTaskFeatureNames(task)
   size = nrow(data)
   
@@ -165,12 +165,11 @@ LOCO_all <- function(data, learner, target, alpha = 0.05) {
 
 
 
-
-GCM_filter <- function(data,learner,target, alpha = 0.05){
+GCM_filter <- function(data,learner,target, alpha = 0.05,learner_params = list()){
   nn<-nrow(data)
   data_X <- data %>% dplyr::select(-target)
   task_Y = makeRegrTask(data = data , target = target)# this is for regression not classifiction
-  learner_filter = makeLearner(learner)
+  learner_filter = makeLearner(learner, par.vals = learner_params)
   feat = getTaskFeatureNames(task_Y)
   resultGCM = data.frame(test.statistics = numeric(0), p.val = numeric(0), rejection = logical(0), R=numeric(0)) # create empty dataframe to store feature importance score
   
@@ -241,8 +240,105 @@ GCM_filter_tr <- function(data, learner, target, alpha = 0.05, transformations =
   return(list(resultGCM = resultGCM, selected_data = selected_data))
 }
 
+# GCM feature subst selection
+GCM_multivariate_test_stat <- function(resid.XonZ,resid.YonZ,nsim=449L){
+  d_X <- NCOL(resid.XonZ); d_Y <- 1
+  nn <- NROW(resid.XonZ)
+  R_mat <- rep(resid.XonZ, times=d_Y) * as.numeric(as.matrix(resid.YonZ)[, rep(seq_len(d_Y), each=d_X)])
+  dim(R_mat) <- c(nn, d_X*d_Y)
+  R_mat <- t(R_mat)
+  R_mat <- R_mat / sqrt((rowMeans(R_mat^2) - rowMeans(R_mat)^2))
+  
+  test.statistic <- max(abs(rowMeans(R_mat))) * sqrt(nn)
+  test.statistic.sim <- apply(abs(R_mat %*% matrix(rnorm(nn*nsim), nn, nsim)), 2, max) / sqrt(nn)
+  p.value <- (sum(test.statistic.sim >= test.statistic)+1) / (nsim+1)
+  return(list(p.value = p.value, test.statistic = test.statistic))
+}
 
 
+
+GCM_subset_filter <- function(data_comb_list,full_data,learner,target, alpha = 0.05,learner_params = list()){
+  num_combinations <- length(data_comb_list)
+  learner_filter = makeLearner(learner, par.vals = learner_params)
+  resultGCM = data.frame(test.statistics = numeric(0), p.val = numeric(0), rejection = logical(0)) # create empty dataframe to store feature importance score
+  for (i in 1:num_combinations) {
+    left <- data_comb_list[[i]]$left
+    response_names <- names(left)
+    union <- data_comb_list[[i]]$union
+    resid_func <- function(V) comp.resids(target_Y = V, data_X = union, learner = learner_filter)
+    resX <- apply(left, 2, resid_func)
+    y <- full_data[,target]
+    resY <- comp.resids(data_X = union, target_Y = y, learner = learner_filter)
+    multivariate_testing <-GCM_multivariate_test_stat(resid.XonZ = resX,resid.YonZ = resY)
+    #new_row <- data.frame(Features = response_names,test.statistics = multivariate_testing$test.statistic, p.val = multivariate_testing$p.value, rejection = multivariate_testing$p.value < alpha)
+    new_row <- data.frame(Features = paste(response_names, collapse = " + "),
+                          test.statistics = multivariate_testing$test.statistic, 
+                          p.val = multivariate_testing$p.value, 
+                          rejection = multivariate_testing$p.value < alpha)
+    resultGCM <- rbind(resultGCM, new_row)
+  }
+  return(resultGCM)
+}
+
+comp.resids <- function(data_X, target_Y,learner){
+  compact_data = cbind(data_X, y=target_Y)
+  taskfeat <- makeRegrTask(data = compact_data , target = "y")
+  model <- train(learner, taskfeat)#  By default subsets= NULL if all observations are used
+  pred <- predict(model, task = taskfeat)
+  res <- getPredictionTruth(pred) - getPredictionResponse(pred)
+  return(res)
+}
+
+LOCO_subset <- function(data_comb_list,full_data, learner, target, alpha = 0.05,learner_params = list()) {
+  num_combinations <- length(data_comb_list)
+  task = makeRegrTask(data = full_data, target = target)
+  learnerLOCO = makeLearner(learner, par.vals = learner_params)
+  size = nrow(full_data)
+  
+  # Train and predict using the entire dataset using mse
+  model = train(learnerLOCO, task)
+  pred = predict(model, task)
+  allfeat_error = mean((pred$data$response - pred$data$truth)^2)
+  
+  resultLOCO = numeric(num_combinations)
+  observed_diff = numeric(num_combinations)
+  se_diff = numeric(num_combinations)
+  selected_names = character(num_combinations)
+  
+  for (i in 1:num_combinations) {
+    left <- data_comb_list[[i]]$left
+    response_names <- names(left)
+    selected_names[i] = paste(response_names, collapse = " + ")
+    union <- data_comb_list[[i]]$union
+    y <- full_data[,target]
+    resY <- comp.resids(data_X = union, target_Y = y, learner = learnerLOCO)
+    feat_error <- mean(resY^2)
+    importance = feat_error - allfeat_error
+    observed_diff[i] = importance
+    se_diff[i] =(sd((resY)^2 - 
+                      (pred$data$response - pred$data$truth)^2))/(sqrt(size))
+    
+    resultLOCO[i] = importance
+  }
+  rank_l_s = rank(-resultLOCO) # the largest score is rank 1, rank from the largest to smallest
+  lb = observed_diff - qnorm(1 - alpha / 2) * se_diff
+  ub = observed_diff + qnorm(1 - alpha / 2) * se_diff
+  test_stat = observed_diff / se_diff
+  p_val = 2 * pnorm(-abs(test_stat))
+  
+  FIP = data.frame(Feature = selected_names,
+                   Feature_Importance_Score = resultLOCO,
+                   Test_Statistics = test_stat,
+                   P.Value = p_val,
+                   Rank = rank_l_s,
+                   LB = lb,
+                   UB = ub)
+  
+  colnames(FIP) = c("Features", "Feature_Importance_Score", "Test_Statistics",
+                    "P.Value", "Rank", "LB", "UB")
+  
+  return(FIP)
+}
 
 
 cplx_cov_matrix <- function(n, rho) {
@@ -260,9 +356,65 @@ cplx_cov_matrix <- function(n, rho) {
 
 aggregate_results <- function(results_list) {
         combined_results <- do.call(rbind, results_list)
-        combined_results <- aggregate(. ~ Features, data = combined_results, 
+       combined_results <- aggregate(. ~ Features, data = combined_results, 
         FUN = function(x) c(mean = mean(x)))
   return(combined_results)
 }
 
+subset_features <- function(data, target, num_groups) {
+  feature_names <- names(data)[names(data) != target]
+  set.seed(123)
+  shuffled_features <- sample(feature_names)
+  #shuffled_features <- feature_names
+  p <- length(shuffled_features)
+  group_size <- p %/% num_groups
+  
+  if (group_size >= 3) {
+    feature_groups <- list()
+    for (i in 1:num_groups) {
+      start <- (i - 1) * group_size + 1
+      end <- min(i * group_size, p)
+      feature_groups[[i]] <- shuffled_features[start:end]
+    }
+    
+    remainder_index <- num_groups * group_size + 1
+    if (remainder_index < p){
+      remaining_features <- shuffled_features[remainder_index: p]
+      
+      if (length(remaining_features) > 0) {
+        if (length(remaining_features) < 3) {
+          feature_groups[[num_groups]] <- c(feature_groups[[num_groups]], remaining_features)
+        } else {
+          feature_groups[[num_groups + 1]] <- remaining_features
+          num_groups <- num_groups + 1
+        }
+      }}
+    
+    data_subsets <- list()
+    for (i in 1:num_groups) {
+      data_subsets[[i]] <- data[, c(feature_groups[[i]]), drop = FALSE]
+    }
+    return(data_subsets)
+  } else {
+    stop("You need to enter a smaller value for num_groups.")
+  }
+}
+
+
+subsets_combinations <- function(data, target,num_groups) {
+  data_list <- subset_features(data = data, target = target, num_groups = num_groups)
+  if(class(data_list)!= "list"){
+    return(data_list)
+  }else{
+  results <- list()
+  n <- length(data_list)
+  for (i in 1:n) {
+    left_out <- data_list[[i]]
+    rest <- data_list[-i]
+    union_df <- Reduce(cbind, rest)
+    
+    results[[i]] <- list(union = union_df, left = left_out)
+  }
+  return(results)}
+}
 

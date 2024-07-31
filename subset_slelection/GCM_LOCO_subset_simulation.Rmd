@@ -1,0 +1,254 @@
+---
+title: "GCM,LOCO Subset Selection Simulation"
+author: "Chenghui Zheng"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
+library(MASS)
+library(dplyr)
+library(mvtnorm)
+library(matrixcalc)
+library(mlr)
+library(iml)
+library(ggplot2)
+library(randomForest)
+library(kernlab) #ksvm
+library(kknn)
+library(nnet)
+source("stored_functions_for_GCM_LOCO.R")
+```
+### (a) Linear Model with Independent Predictors
+
+\[ Y_1 \sim 1.5X_1 +1.5 X_2 + 2X_3 + 2X_4 + 2X_5 + 3X_6 + 4X_7 + 5X_8 + \epsilon \]
+
+### (b) Linear Model with Correlated Predictors
+
+\[ Y_2 \sim 1.5X_1 +1.5 X_2 + 2X_3 + 2X_4 + 2X_5 + 3X_6 + 4X_7 + 5X_8 + \epsilon \]
+
+Where \(X_1 \not\perp\!\!\!\perp X_2\) and \(\text{cov}(X_1, X_2) = 0, 0.5, 0.75, 0.9\) respectively.
+
+### (c) Linear Model with Correlated Predictors and Different SNR
+
+\[ Y_3 \sim 1.5X_1 +1.5 X_2 + 2X_3 + 2X_4 + 2X_5 + 3X_6 + 4X_7 + 5X_8 + \epsilon \]
+
+Where \(\text{cov}(X_i, X_j) = \rho^{|i-j|}\) and \(\epsilon \sim N(0, \sigma^2)\) with \(\sigma^2 = 0.1, 0.5, 0.75, 2.1\).
+
+### (d) Non-linear Model 
+
+\[ Y_4 \sim 2X_1^2 + 2\cos(4X_2) + \sin(X_3) + \exp\left(X_4/3\right) + 3X_5 +X_6^3 + 5 X_7 + \max(0, X_8) \]
+
+# GCM Subsets selection
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+# case a)
+run_simulation_a <- function(num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+   y1 <- 1.5*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    data_list <- subsets_combinations(data = data_indep, target = "y",num_groups = 5)
+    LOCO_results <- GCM_subset_filter(data_comb_list = data_list,full_data = data_indep, learner = "regr.lm", target = "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  
+  return(aggregate_results(results_list))
+}
+
+#start <- proc.time()
+results_1 <- run_simulation_a(10)
+#print( proc.time() - start )
+ggplot(results_1, aes(x = Features, y = p.val)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = 1),size=0.5)  +
+  labs(title = "Case a):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+
+
+```
+
+```{r,echo=FALSE}
+# case b)
+
+run_simulation_b <- function(cor, num_simulations, Alpha = 0.05) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    
+    sigma_indep <- diag(1, nrow = 20)
+    sigma_indep[1, 2] <- cor
+    sigma_indep[2, 1] <- cor
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+    
+    # Define response y
+    y1 <- 1.5*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+        # Run LOCO
+    data_list <- subsets_combinations(data = data_indep, target = "y",num_groups = 5)
+    LOCO_results <- GCM_subset_filter(data_comb_list = data_list,full_data = data_indep, learner = "regr.lm", target = "y")
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  return(aggregate_results(results_list))
+}
+
+
+
+#start <- proc.time()
+results2 <- data.frame()
+
+correlations <- c(0, 0.5, 0.75, 0.9)
+
+
+for (rho in correlations) {
+  results_b <- run_simulation_b(cor = rho, num_simulations=10, Alpha = 0.05)
+  
+  results_b$Correlation <- rho
+  
+  results2 <- rbind(results2, results_b)
+}
+#print( proc.time() - start )
+#write.csv(results2, "simulation_0.01gcm_filter2.csv", row.names = FALSE)
+results2$Correlation <- as.factor(results2$Correlation)
+ ggplot(results2, aes(x = Features, y = p.val, color = Correlation))+ geom_point(size = 3) +
+  geom_line(aes(group = Correlation), size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case b): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
+
+```
+```{r,echo=FALSE}
+# case c)
+run_simulation_c <- function(snr, num_simulations, Alpha = 0.05) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)  
+    sigma_indep <- cplx_cov_matrix(n=20, rho=0.7)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+
+    y1 <- 1.5*data_indep$X1 + 1.5*data_indep$X2 + 2*data_indep$X3 + 2*data_indep$X4+
+          2 * data_indep$X5 + 3 * data_indep$X6 + 
+          4 * data_indep$X7 + 5 * data_indep$X8 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    data_list <- subsets_combinations(data = data_indep, target = "y",num_groups = 5)
+    LOCO_results <- GCM_subset_filter(data_comb_list = data_list,full_data = data_indep, learner = "regr.lm", target = "y")
+    
+    results_list[[i]] <- LOCO_results
+  }
+  return(aggregate_results(results_list))
+}
+
+
+
+start <- proc.time()
+results3 <- data.frame()
+
+snrs <- c(0.1, 0.5, 0.75, 2.1)
+
+
+for (sigma in snrs) {
+  results_c <- run_simulation_c(snr = sigma, num_simulations=1,Alpha=0.05)
+  
+  results_c$snr <- sigma
+  
+  results3 <- rbind(results3, results_c)
+}
+#print( proc.time() - start )
+#write.csv(results3, "simulation_0.01gcm_filter3.csv", row.names = FALSE)
+results3$snr <- as.factor(results3$snr)
+ ggplot(results3, aes(x = Features, y = p.val, color = snr))+ geom_point(size = 3) +
+  geom_line(aes(group = snr), size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")  +
+  labs(title = 'Case c): ',
+       x = 'Features',
+       y = 'Averaged P.Value') +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
+
+```
+
+```{r,echo=FALSE}
+# case d) non-linear
+run_simulation_d <- function(num_simulations) {
+  results_list <- list()
+  
+  for (i in 1:num_simulations) {
+    set.seed(123 + i)
+    sigma_indep <- diag(1, nrow = 20)
+    data_indep <- as.data.frame(mvrnorm(n = 500, 
+                                        mu = rep(0, times = 20), 
+                                        Sigma = sigma_indep))
+    colnames(data_indep) <- paste("X", 1:20, sep = "")
+
+    # Define response y
+    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ + 3*data_indep$X5 + (data_indep$X6)^3+ 
+          5 * data_indep$X7 + 
+          rnorm(n = 500, mean = 0, sd = 0.1)
+    data_indep["y"] <- y1
+    
+    # Run LOCO
+    data_list <- subsets_combinations(data = data_indep, target = "y",num_groups = 5)
+    LOCO_results <- GCM_subset_filter(data_comb_list = data_list,full_data = data_indep, learner = "regr.ksvm", target = "y")
+    
+    # Store the results in the list
+    results_list[[i]] <- LOCO_results
+  }
+  
+  return(aggregate_results(results_list))
+}
+
+#start <- proc.time()
+results_d <- run_simulation_d(50)
+#print( proc.time() - start )
+
+ggplot(results_d, aes(x = Features, y = p.val)) +
+  geom_point(size = 1) +
+  geom_line(aes(group = 1),size=0.5)  +
+  labs(title = "Case d):", x = "Features", y = "p.value(training error)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+```
