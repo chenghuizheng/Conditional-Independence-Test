@@ -248,7 +248,11 @@ GCM_multivariate_test_stat <- function(resid.XonZ,resid.YonZ,nsim=449L){
   dim(R_mat) <- c(nn, d_X*d_Y)
   R_mat <- t(R_mat)
   R_mat <- R_mat / sqrt((rowMeans(R_mat^2) - rowMeans(R_mat)^2))
-  
+  #this is for sum of sq of T(n)
+  #T_jk <- rowMeans(R_mat) * sqrt(nn)
+  #test.statistic <- sum(T_jk^2)
+  #p.value <- as.numeric(2 * pnorm(abs(test.statistic), lower.tail = FALSE))
+  # this is for max T(n)
   test.statistic <- max(abs(rowMeans(R_mat))) * sqrt(nn)
   test.statistic.sim <- apply(abs(R_mat %*% matrix(rnorm(nn*nsim), nn, nsim)), 2, max) / sqrt(nn)
   p.value <- (sum(test.statistic.sim >= test.statistic)+1) / (nsim+1)
@@ -270,11 +274,11 @@ GCM_subset_filter <- function(data_comb_list,full_data,learner,target, alpha = 0
     y <- full_data[,target]
     resY <- comp.resids(data_X = union, target_Y = y, learner = learner_filter)
     multivariate_testing <-GCM_multivariate_test_stat(resid.XonZ = resX,resid.YonZ = resY)
-    #new_row <- data.frame(Features = response_names,test.statistics = multivariate_testing$test.statistic, p.val = multivariate_testing$p.value, rejection = multivariate_testing$p.value < alpha)
-    new_row <- data.frame(Features = paste(response_names, collapse = " + "),
-                          test.statistics = multivariate_testing$test.statistic, 
-                          p.val = multivariate_testing$p.value, 
-                          rejection = multivariate_testing$p.value < alpha)
+    new_row <- data.frame(Features = response_names,test.statistics = multivariate_testing$test.statistic, p.val = multivariate_testing$p.value, rejection = multivariate_testing$p.value < alpha)
+    #new_row <- data.frame(Features = paste(response_names, collapse = " + "),
+                          #test.statistics = multivariate_testing$test.statistic, 
+                          #p.val = multivariate_testing$p.value, 
+                          #rejection = multivariate_testing$p.value < alpha)
     resultGCM <- rbind(resultGCM, new_row)
   }
   return(resultGCM)
@@ -289,6 +293,7 @@ comp.resids <- function(data_X, target_Y,learner){
   return(res)
 }
 
+#LOCO Subset Selection
 LOCO_subset <- function(data_comb_list,full_data, learner, target, alpha = 0.05,learner_params = list()) {
   num_combinations <- length(data_comb_list)
   task = makeRegrTask(data = full_data, target = target)
@@ -330,12 +335,17 @@ LOCO_subset <- function(data_comb_list,full_data, learner, target, alpha = 0.05,
                    Feature_Importance_Score = resultLOCO,
                    Test_Statistics = test_stat,
                    P.Value = p_val,
+                   rejection = p_val <0.05,
                    Rank = rank_l_s,
                    LB = lb,
                    UB = ub)
   
   colnames(FIP) = c("Features", "Feature_Importance_Score", "Test_Statistics",
-                    "P.Value", "Rank", "LB", "UB")
+                    "P.Value","rejection", "Rank", "LB", "UB")
+  
+  FIP <- FIP %>%
+    separate_rows(Features, sep = "\\+") %>%
+    mutate(Features = trimws(Features))
   
   return(FIP)
 }
@@ -361,9 +371,9 @@ aggregate_results <- function(results_list) {
   return(combined_results)
 }
 
-subset_features <- function(data, target, num_groups) {
+subset_features <- function(data, target, num_groups,num_random = 0) {
   feature_names <- names(data)[names(data) != target]
-  set.seed(123)
+  set.seed(123 + num_random)
   shuffled_features <- sample(feature_names)
   #shuffled_features <- feature_names
   p <- length(shuffled_features)
@@ -401,8 +411,8 @@ subset_features <- function(data, target, num_groups) {
 }
 
 
-subsets_combinations <- function(data, target,num_groups) {
-  data_list <- subset_features(data = data, target = target, num_groups = num_groups)
+subsets_combinations <- function(data, target,num_groups, num_random = 0) {
+  data_list <- subset_features(data = data, target = target, num_groups = num_groups, num_random = num_random)
   if(class(data_list)!= "list"){
     return(data_list)
   }else{
@@ -418,3 +428,8 @@ subsets_combinations <- function(data, target,num_groups) {
   return(results)}
 }
 
+accuracy_comp <- function(correct_feature_list, data, threshold = 0.95){
+  TP <- sum(data$Features %in% correct_feature_list & data$rejection >threshold) +sum(!(data$Features %in% correct_feature_list) & data$rejection <=threshold)
+  accuracy <- TP/nrow(data)
+  return(accuracy)
+}
