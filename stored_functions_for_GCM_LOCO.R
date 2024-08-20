@@ -186,9 +186,13 @@ GCM_filter <- function(data,learner,target, alpha = 0.05,learner_params = list()
     R <- res_Xj*res_Y
     R.sq <- R^2
     meanR <- mean(R)
+    #sd_paper <-sqrt(mean(R.sq) - meanR^2)*sqrt(nn)
+    #sd_me <- sd(R)*sqrt(nn)
     test.stat <- sqrt(nn) * meanR / sqrt(mean(R.sq) - meanR^2)
     p.value <- as.numeric(2 * pnorm(abs(test.stat), lower.tail = FALSE))
     new_row <- data.frame(Features = feat[i],test.statistics = test.stat, p.val = p.value, rejection = p.value < alpha, R=meanR)
+    #new_row <- data.frame(Features = feat[i],test.statistics = sd_paper, p.val = sd_me, rejection = p.value < alpha, R=meanR)
+    
     resultGCM <- rbind(resultGCM, new_row)
   }
   rownames(resultGCM) = c(feat)
@@ -245,17 +249,32 @@ GCM_multivariate_test_stat <- function(resid.XonZ,resid.YonZ,nsim=449L){
   d_X <- NCOL(resid.XonZ); d_Y <- 1
   nn <- NROW(resid.XonZ)
   R_mat <- rep(resid.XonZ, times=d_Y) * as.numeric(as.matrix(resid.YonZ)[, rep(seq_len(d_Y), each=d_X)])
-  dim(R_mat) <- c(nn, d_X*d_Y)
-  R_mat <- t(R_mat)
-  R_mat <- R_mat / sqrt((rowMeans(R_mat^2) - rowMeans(R_mat)^2))
-  #this is for sum of sq of T(n)
+  #dim(R_mat) <- c(nn, d_X*d_Y)
+  #R_mat <- t(R_mat)
+  #R_mat <- R_mat / sqrt((rowMeans(R_mat^2) - rowMeans(R_mat)^2))
+  
+  #this is for sum of sq of T(n)----------to be deleted
   #T_jk <- rowMeans(R_mat) * sqrt(nn)
   #test.statistic <- sum(T_jk^2)
+  #p.value <- as.numeric(2 * pnorm(abs(test.statistic), lower.tail = FALSE))----T(n)=sum of sq, END
+  
+  # this is for new T(n)  - independence case
+  test.statistic <- sum(R_mat)/(sd(R_mat)*sqrt(length(R_mat)))
+  p.value <- as.numeric(2 * pnorm(abs(test.statistic), lower.tail = FALSE))
+  
+  # this is for new T(n) - cov case
+  #dim(R_mat) <- c(nn, d_X*d_Y)
+  #cov_matrix <- cov(R_mat)
+  #sum_var <- sum(diag(cov_matrix))
+  #denom <- sum(cov_matrix)+sum_var
+  #test.statistic <- sum(R_mat)/sqrt(denom)
   #p.value <- as.numeric(2 * pnorm(abs(test.statistic), lower.tail = FALSE))
+  
+  
   # this is for max T(n)
-  test.statistic <- max(abs(rowMeans(R_mat))) * sqrt(nn)
-  test.statistic.sim <- apply(abs(R_mat %*% matrix(rnorm(nn*nsim), nn, nsim)), 2, max) / sqrt(nn)
-  p.value <- (sum(test.statistic.sim >= test.statistic)+1) / (nsim+1)
+  #test.statistic <- max(abs(rowMeans(R_mat))) * sqrt(nn)
+  #test.statistic.sim <- apply(abs(R_mat %*% matrix(rnorm(nn*nsim), nn, nsim)), 2, max) / sqrt(nn)
+  #p.value <- (sum(test.statistic.sim >= test.statistic)+1) / (nsim+1)
   return(list(p.value = p.value, test.statistic = test.statistic))
 }
 
@@ -274,11 +293,11 @@ GCM_subset_filter <- function(data_comb_list,full_data,learner,target, alpha = 0
     y <- full_data[,target]
     resY <- comp.resids(data_X = union, target_Y = y, learner = learner_filter)
     multivariate_testing <-GCM_multivariate_test_stat(resid.XonZ = resX,resid.YonZ = resY)
-    new_row <- data.frame(Features = response_names,test.statistics = multivariate_testing$test.statistic, p.val = multivariate_testing$p.value, rejection = multivariate_testing$p.value < alpha)
-    #new_row <- data.frame(Features = paste(response_names, collapse = " + "),
-                          #test.statistics = multivariate_testing$test.statistic, 
-                          #p.val = multivariate_testing$p.value, 
-                          #rejection = multivariate_testing$p.value < alpha)
+    #new_row <- data.frame(Features = response_names,test.statistics = multivariate_testing$test.statistic, p.val = multivariate_testing$p.value, rejection = multivariate_testing$p.value < alpha)
+    new_row <- data.frame(Features = paste(response_names, collapse = " + "),
+                          test.statistics = multivariate_testing$test.statistic, 
+                          p.val = multivariate_testing$p.value, 
+                          rejection = multivariate_testing$p.value < alpha)
     resultGCM <- rbind(resultGCM, new_row)
   }
   return(resultGCM)
@@ -342,7 +361,7 @@ LOCO_subset <- function(data_comb_list,full_data, learner, target, alpha = 0.05,
   
   colnames(FIP) = c("Features", "Feature_Importance_Score", "Test_Statistics",
                     "P.Value","rejection", "Rank", "LB", "UB")
-  
+ #----belw is for accuracy part 
   FIP <- FIP %>%
     separate_rows(Features, sep = "\\+") %>%
     mutate(Features = trimws(Features))

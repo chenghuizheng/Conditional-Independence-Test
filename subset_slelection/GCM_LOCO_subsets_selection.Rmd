@@ -46,7 +46,7 @@ Where \(\text{cov}(X_i, X_j) = \rho^{|i-j|}\) and \(\epsilon \sim N(0, \sigma^2)
 \[ Y_4 \sim 2X_1^2 + 2\cos(4X_2) + \sin(X_3) + \exp\left(X_4/3\right) + 3X_5 +X_6^3 + 5 X_7 + \max(0, X_8) \]
 
 
-# GCM Subsets selection
+# GCM Subsets selection(new T(n),100 simulations, each 500 instances)
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 # case a)
 run_simulation_a <- function(num_simulations) {
@@ -83,7 +83,10 @@ run_simulation_a <- function(num_simulations) {
 
 ```{r,echo=FALSE,eval=TRUE}
 # rejection rate vs features
+start <- proc.time()
 results <- run_simulation_a(100)
+print( proc.time() - start)
+
 results$Features <- factor(results$Features, levels = paste0("X", 1:20))
 
  ggplot(results, aes(x = Features, y = rejection))+ geom_point(size =1) +
@@ -300,7 +303,7 @@ for (sigma in snrs) {
   
   results3 <- rbind(results3, results_c)
 }
-#print( proc.time() - start )
+print( proc.time() - start )
 #write.csv(results3, "simulation_0.01gcm_filter3.csv", row.names = FALSE)
 results3$Features <- factor(results3$Features, levels = paste0("X", 1:20))
 results3$snr <- as.factor(results3$snr)
@@ -329,9 +332,7 @@ run_simulation_d <- function(num_simulations) {
     colnames(data_indep) <- paste("X", 1:20, sep = "")
 
     # Define response y
-    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ + 3*data_indep$X5 + (data_indep$X6)^3+ 
-          5 * data_indep$X7 + 
-          rnorm(n = 500, mean = 0, sd = 0.1)
+    y1 <- 2*(data_indep$X1)^2 + 2*cos(4*data_indep$X2) + sin(data_indep$X3) + exp(data_indep$X4/3)+ + 3*data_indep$X5 + (data_indep$X6)^3+ 5 * data_indep$X7+ rnorm(n = 500, mean = 0, sd = 0.1)
     data_indep["y"] <- y1
     
     # Run LOCO
@@ -387,4 +388,6 @@ ggplot(results_d, aes(x = Features, y = rejection)) +
   labs(title = "Case d):", x = "Features", y = "rejection rate") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) #+ geom_hline(yintercept = 0.05, linetype = "dashed", color = "red")
+#write.csv(results_d, "sim_gcm_filter_d_5000.csv", row.names = FALSE)
+
 ```
